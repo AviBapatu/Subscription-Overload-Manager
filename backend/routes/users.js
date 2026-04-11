@@ -33,29 +33,51 @@ router.post('/', async (req, res) => {
 });
 
 // ─────────────────────────────────────────
+// POST /api/users/register
+// ─────────────────────────────────────────
+router.post('/register', async (req, res) => {
+    try {
+        const { email, password, name, phoneNumber, timezone } = req.body;
+        if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
+
+        const existing = await User.findOne({ email: email.trim().toLowerCase() });
+        if (existing) return res.status(400).json({ error: 'Email already exists. Please sign in.' });
+
+        const user = new User({
+            email: email.trim().toLowerCase(),
+            password: password, // Plain text for mock implementation
+            name: name || email.split('@')[0],
+            phoneNumber: phoneNumber || '',
+            timezone: timezone || 'UTC',
+            preferences: {
+                notifyViaEmail: true,
+                notifyViaWhatsApp: false,
+                alertDaysBefore: 3
+            }
+        });
+        await user.save();
+        res.status(201).json(user);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ─────────────────────────────────────────
 // POST /api/users/login
-//   Mock authentication: find or create user by email
-//   Body: { email, name?, phoneNumber?, timezone? }
 // ─────────────────────────────────────────
 router.post('/login', async (req, res) => {
     try {
-        const { email, name, phoneNumber, timezone } = req.body;
-        if (!email) return res.status(400).json({ error: 'Email is required' });
+        const { email, password } = req.body;
+        if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
 
         let user = await User.findOne({ email: email.trim().toLowerCase() });
+        if (!user) return res.status(401).json({ error: 'Invalid email or password' });
 
-        if (!user) {
-            user = new User({
-                email: email.trim().toLowerCase(),
-                name: name || email.split('@')[0],
-                phoneNumber: phoneNumber || '',
-                timezone: timezone || 'UTC',
-                preferences: {
-                    notifyViaEmail: true,
-                    notifyViaWhatsApp: false,
-                    alertDaysBefore: 3
-                }
-            });
+        if (user.password && user.password !== password) {
+            return res.status(401).json({ error: 'Invalid email or password' });
+        } else if (!user.password) {
+            // Migration for existing accounts from previous step
+            user.password = password;
             await user.save();
         }
 

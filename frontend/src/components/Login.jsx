@@ -6,7 +6,7 @@ import { loginUser } from '../lib/api';
 const Login = () => {
     const navigate = useNavigate();
     const { setUser } = useAuth();
-    const [form, setForm] = useState({ email: '', name: '' });
+    const [form, setForm] = useState({ email: '', password: '', name: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [isSignup, setIsSignup] = useState(false);
@@ -18,11 +18,16 @@ const Login = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!form.email.trim()) { setError('Email is required.'); return; }
+        if (!form.email.trim() || !form.password) { setError('Email and password are required.'); return; }
         setLoading(true);
         setError('');
         try {
-            const user = await loginUser(form.email.trim(), form.name.trim() || undefined);
+            let user;
+            if (isSignup) {
+                user = await registerUser(form.email.trim(), form.password, form.name.trim() || undefined);
+            } else {
+                user = await loginUser(form.email.trim(), form.password);
+            }
             setUser(user);
             navigate('/', { replace: true });
         } catch (err) {
@@ -97,6 +102,27 @@ const Login = () => {
                                     value={form.email}
                                     onChange={handleChange}
                                     autoComplete="email"
+                                />
+                            </div>
+                        </div>
+
+                        {/* Password */}
+                        <div className="space-y-2">
+                            <label className="text-sm font-semibold text-on-surface-variant ml-1" htmlFor="password">
+                                Password
+                            </label>
+                            <div className="relative">
+                                <div className="absolute inset-y-0 left-4 flex items-center pointer-events-none text-outline">
+                                    <span className="material-symbols-outlined text-lg">lock</span>
+                                </div>
+                                <input
+                                    className="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl py-4 pl-12 pr-4 focus:ring-4 focus:ring-primary/10 focus:border-primary transition-all duration-300 outline-none text-on-background placeholder:text-outline-variant"
+                                    id="password"
+                                    placeholder="••••••••"
+                                    type="password"
+                                    value={form.password}
+                                    onChange={handleChange}
+                                    autoComplete="current-password"
                                 />
                             </div>
                         </div>

@@ -15,8 +15,11 @@ const apiFetch = async (path, options = {}) => {
 };
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
-export const loginUser = (email, name) =>
-    apiFetch('/users/login', { method: 'POST', body: { email, name } });
+export const registerUser = (email, password, name) =>
+    apiFetch('/users/register', { method: 'POST', body: { email, password, name } });
+
+export const loginUser = (email, password) =>
+    apiFetch('/users/login', { method: 'POST', body: { email, password } });
 
 // ─── Users ───────────────────────────────────────────────────────────────────
 export const fetchUser = (userId) =>
