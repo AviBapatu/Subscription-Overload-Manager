@@ -102,12 +102,28 @@ router.post('/login', async (req, res) => {
 router.put('/:id/preferences', auth, async (req, res) => {
     try {
         if (req.user.id !== req.params.id) return res.status(403).json({ error: 'Unauthorized' });
+        
         const user = await User.findByIdAndUpdate(
             req.params.id,
             { $set: { preferences: req.body } },
             { new: true }
         );
+        
         if (!user) return res.status(404).json({ error: 'User not found' });
+
+        // Retroactively cascade preference updates (alert dates and notification flags) to all active subscriptions
+        const Subscription = require('../models/Subscription');
+        const dayjs = require('dayjs');
+        const subs = await Subscription.find({ userId: user._id });
+        
+        for (const sub of subs) {
+            const alertDays = user.preferences?.alertDaysBefore || 3;
+            sub.notifyViaEmail = user.preferences?.notifyViaEmail;
+            sub.notifyViaWhatsApp = user.preferences?.notifyViaWhatsApp;
+            sub.alertDate = dayjs(sub.nextBillingDate).subtract(alertDays, 'day').startOf('day').toDate();
+            await sub.save();
+        }
+
         res.json(user);
     } catch (err) {
         res.status(500).json({ error: err.message });
