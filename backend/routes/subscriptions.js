@@ -116,32 +116,23 @@ router.get('/:userId/spending-history', async (req, res) => {
             months.push({ month: m.format('MMM'), year: m.format('YYYY'), date: m });
         }
 
-        const history = months.map(({ month, year }) => {
-            // For each month, sum costs of subs that were/are active at that point
+        const history = months.map(({ month, year, date }) => {
+            const endOfMonth = date.endOf('month');
+            
+            // For each month, sum costs of subs that were active at that point
             const total = subs.reduce((acc, sub) => {
-                // Consider sub active in a past month if its nextBillingDate is after that month start
-                // Simple heuristic: treat all currently active subs as having been active
-                if (sub.status === 'ACTIVE') {
+                // Determine if this subscription existed by the end of the historical month
+                if (sub.status === 'ACTIVE' && dayjs(sub.createdAt).isBefore(endOfMonth)) {
                     return acc + toMonthly(sub);
                 }
                 return acc;
             }, 0);
 
-            // Add ±15% randomness to give historical variation (realistic look)
-            const variance = 0.85 + Math.random() * 0.3;
             return {
                 month: `${month} ${year}`,
-                spend: parseFloat((total * variance).toFixed(2))
+                spend: parseFloat(total.toFixed(2))
             };
         });
-
-        // Last entry is always exact current
-        if (history.length > 0) {
-            const currentTotal = subs
-                .filter(s => s.status === 'ACTIVE')
-                .reduce((acc, s) => acc + toMonthly(s), 0);
-            history[history.length - 1].spend = parseFloat(currentTotal.toFixed(2));
-        }
 
         res.json(history);
     } catch (err) {
