@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../lib/AuthContext';
-import { loginUser } from '../lib/api';
+import { loginUser, registerUser } from '../lib/api';
 
 const Login = () => {
     const navigate = useNavigate();
@@ -49,11 +49,6 @@ const Login = () => {
 
                     {/* Logo */}
                     <div className="mb-10 text-center">
-                        <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-tertiary shadow-xl shadow-primary/30 mb-5">
-                            <span className="material-symbols-outlined text-white text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>
-                                inventory_2
-                            </span>
-                        </div>
                         <h1 className="text-3xl font-black tracking-tighter text-on-surface">The Concierge</h1>
                         <p className="text-on-surface-variant font-medium tracking-tight mt-1">
                             {isSignup ? 'Create your curator profile' : 'Sign in to your workspace'}
@@ -167,21 +162,6 @@ const Login = () => {
                             </button>
                         </p>
 
-                        {/* Feature pills */}
-                        <div className="grid grid-cols-2 gap-3 mt-6">
-                            {[
-                                { icon: 'schedule', label: 'Timezone alerts' },
-                                { icon: 'notifications_active', label: 'Smart reminders' },
-                                { icon: 'bar_chart', label: 'Spend analytics' },
-                                { icon: 'verified_user', label: 'Secure storage' }
-                            ].map(f => (
-                                <div key={f.label}
-                                    className="flex flex-col items-center p-4 bg-surface-container-low rounded-xl hover:bg-surface-container transition-colors cursor-default group">
-                                    <span className="material-symbols-outlined text-secondary mb-2 group-hover:scale-110 transition-transform">{f.icon}</span>
-                                    <span className="text-[10px] uppercase tracking-widest font-bold text-on-surface-variant">{f.label}</span>
-                                </div>
-                            ))}
-                        </div>
                     </div>
                 </div>
 
