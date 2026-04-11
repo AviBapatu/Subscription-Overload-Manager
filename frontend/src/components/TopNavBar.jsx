@@ -1,44 +1,74 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
+import { useAuth } from '../lib/AuthContext';
 
 const TopNavBar = () => {
-  const location = useLocation();
+    const location = useLocation();
+    const { logout, user } = useAuth();
+    
+    // Minimal tabs
+    const navItems = [
+        { name: 'Dashboard', path: '/' },
+        { name: 'Subscriptions', path: '/subscriptions' }
+    ];
 
-  const getLinkClass = (path) => {
-    return location.pathname === path
-      ? "text-blue-600 dark:text-blue-400 font-semibold border-b-2 border-blue-600 font-inter tracking-tight py-1"
-      : "text-on-surface-variant dark:text-slate-400 hover:bg-surface-bright/10 dark:hover:bg-slate-800 transition-all duration-400 font-inter tracking-tight py-1 px-3 rounded-lg";
-  };
+    return (
+        <header className="fixed top-0 inset-x-0 h-20 bg-surface-container-lowest/80 backdrop-blur-xl border-b border-outline-variant/10 z-50 transition-all duration-300">
+            <div className="h-full max-w-[1600px] mx-auto px-6 md:px-10 flex items-center justify-between">
+                
+                {/* Logo */}
+                <Link to="/" className="flex items-center gap-3 group">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-dim flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+                        <span className="material-symbols-outlined text-white text-[20px]" style={{fontVariationSettings: "'FILL' 1"}}>inventory_2</span>
+                    </div>
+                    <span className="font-black text-xl tracking-tight hidden sm:block text-on-surface">Concierge</span>
+                </Link>
 
-  return (
-    <nav className="fixed top-0 w-full z-50 bg-surface-container-lowest/80 dark:bg-slate-900/80 backdrop-blur-xl shadow-sm dark:shadow-none flex justify-between items-center px-10 py-4 max-w-full">
-      <div className="flex items-center gap-8">
-        <span className="text-2xl font-bold tracking-tighter text-on-surface dark:text-white font-inter tracking-tight">The Concierge</span>
-        <div className="hidden md:flex gap-6 items-center">
-          <Link className={getLinkClass('/')} to="/">Dashboard</Link>
-          <Link className={getLinkClass('/subscriptions')} to="/subscriptions">Subscriptions</Link>
-          <Link className={getLinkClass('/profile')} to="/profile">Profile</Link>
-        </div>
-      </div>
-      <div className="flex items-center gap-6">
-        <div className="relative group">
-          <div className="absolute inset-y-0 left-3 flex items-center pointer-events-none text-on-surface-variant">
-            <span className="material-symbols-outlined text-sm">search</span>
-          </div>
-          <input className="bg-surface-container-low border-none rounded-full py-2 pl-10 pr-4 w-64 focus:ring-2 focus:ring-primary/20 text-sm font-inter" placeholder="Search insights..." type="text"/>
-        </div>
-        <div className="flex items-center gap-4">
-          <button className="p-2 rounded-full text-on-surface-variant hover:bg-surface-bright/10 transition-all">
-            <span className="material-symbols-outlined" data-icon="notifications">notifications</span>
-          </button>
-          <button className="bg-primary text-on-primary px-6 py-2 rounded-full font-semibold text-sm hover:scale-105 transition-all shadow-md">
-            Add Subscription
-          </button>
-          <img alt="User avatar" className="w-10 h-10 rounded-full border-2 border-white shadow-sm" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA6wu3EW7MrlOFY7iXmqSokHrI7PkJbY0rBbnEhx9o8ZzNJ7R-qOnPhKBvtFAgs7Kk5IlXBa-GlQtP58eDgxr5MhN61CGJU_oAH90FkCX6jdqk7uM1szkFzVDJ6htSb1GATd0EtfxOO-SbZBnxR7WJxY0kSKiFqPaIrWmOCfWAucoLCymW0lAEsi3cLH_Rd1QJxqX5Benj5MISKLxKArr64iLXH0ybHxnM9L59TNIqfNwz-HrjdGtwO-gTZye4dF1K5qADX_rAl9qQZ"/>
-        </div>
-      </div>
-    </nav>
-  );
+                {/* Main Navigation (Desktop) */}
+                <nav className="hidden md:flex absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-surface-container-low rounded-full p-1 border border-outline-variant/10 shadow-sm">
+                    {navItems.map((item) => {
+                        const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+                        return (
+                            <Link 
+                                key={item.path} 
+                                to={item.path}
+                                className={`px-5 py-2 rounded-full text-sm font-bold transition-all ${
+                                    isActive 
+                                    ? 'bg-white text-primary shadow-sm' 
+                                    : 'text-on-surface-variant hover:text-on-surface hover:bg-black/5'
+                                }`}
+                            >
+                                {item.name}
+                            </Link>
+                        );
+                    })}
+                </nav>
+
+                {/* Right Actions */}
+                <div className="flex items-center gap-4">
+                    <button className="w-10 h-10 rounded-full bg-surface-container-low hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-colors relative">
+                        <span className="material-symbols-outlined text-[20px]">notifications</span>
+                        <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full pointer-events-none"></span>
+                    </button>
+                    
+                    <div className="h-6 w-[1px] bg-outline-variant/20 hidden sm:block"></div>
+                    
+                    <div className="flex items-center gap-3">
+                        <Link to="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
+                            <div className="w-10 h-10 rounded-full bg-surface-container-high border-2 border-surface-container-lowest shadow-sm overflow-hidden flex items-center justify-center bg-primary/10 text-primary font-black">
+                                {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                            </div>
+                            <span className="text-sm font-bold hidden lg:block text-on-surface">{user?.name || 'User'}</span>
+                        </Link>
+                        
+                        <button onClick={logout} className="w-10 h-10 flex items-center justify-center text-error/80 hover:text-error hover:bg-error/10 rounded-full transition-colors ml-1" title="Sign Out">
+                            <span className="material-symbols-outlined text-[20px]">logout</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+    );
 };
 
 export default TopNavBar;

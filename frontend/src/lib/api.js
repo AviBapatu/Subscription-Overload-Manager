@@ -1,54 +1,61 @@
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-// Normally fetched from auth context
-export const USER_ID = '60d5ecb8b392d70f00000000'; // Dummy ID for development
 
-export const fetchSubscriptions = async () => {
-    const res = await fetch(`${API_URL}/subscriptions/${USER_ID}`);
-    if (!res.ok) throw new Error('Failed to fetch subscriptions');
+// ─── Generic fetch helper ────────────────────────────────────────────────────
+const apiFetch = async (path, options = {}) => {
+    const res = await fetch(`${API_URL}${path}`, {
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+        ...options,
+        body: options.body ? JSON.stringify(options.body) : undefined,
+    });
+    if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Request failed: ${res.status}`);
+    }
     return res.json();
 };
 
-export const addSubscription = async (data) => {
-    const res = await fetch(`${API_URL}/subscriptions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...data, userId: USER_ID })
-    });
-    if (!res.ok) throw new Error('Failed to add subscription');
-    return res.json();
-};
+// ─── Auth ────────────────────────────────────────────────────────────────────
+export const loginUser = (email, name) =>
+    apiFetch('/users/login', { method: 'POST', body: { email, name } });
 
-export const paySubscription = async (id) => {
-    const res = await fetch(`${API_URL}/subscriptions/${id}/pay`, {
-        method: 'PUT'
-    });
-    if (!res.ok) throw new Error('Failed to pay for subscription');
-    return res.json();
-};
+// ─── Users ───────────────────────────────────────────────────────────────────
+export const fetchUser = (userId) =>
+    apiFetch(`/users/${userId}`);
 
-export const deleteSubscription = async (id) => {
-    const res = await fetch(`${API_URL}/subscriptions/${id}`, {
-        method: 'DELETE'
-    });
-    if (!res.ok) throw new Error('Failed to delete subscription');
-    return res.json();
-};
+export const updateUserProfile = (userId, data) =>
+    apiFetch(`/users/${userId}`, { method: 'PUT', body: data });
 
-export const seedUserIfNeeded = async () => {
-    // Quick helper to seed a user if it doesn't exist
-    await fetch(`${API_URL}/users`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-            _id: USER_ID,
-            email: 'test@example.com',
-            phoneNumber: '+15555555555',
-            name: 'Test User',
-            preferences: {
-                notifyViaEmail: true,
-                notifyViaWhatsApp: false,
-                alertDaysBefore: 3
-            }
-        })
-    });
-};
+export const updateUserPreferences = (userId, prefs) =>
+    apiFetch(`/users/${userId}/preferences`, { method: 'PUT', body: prefs });
+
+// ─── Subscriptions: Lists ────────────────────────────────────────────────────
+export const fetchSubscriptions = (userId, status) =>
+    apiFetch(`/subscriptions/${userId}${status ? `?status=${status}` : ''}`);
+
+export const fetchStats = (userId) =>
+    apiFetch(`/subscriptions/${userId}/stats`);
+
+export const fetchUpcoming = (userId, limit = 5) =>
+    apiFetch(`/subscriptions/${userId}/upcoming?limit=${limit}`);
+
+export const fetchSpendingHistory = (userId) =>
+    apiFetch(`/subscriptions/${userId}/spending-history`);
+
+export const fetchCategoryBreakdown = (userId) =>
+    apiFetch(`/subscriptions/${userId}/category-breakdown`);
+
+// ─── Subscriptions: Mutations ─────────────────────────────────────────────────
+export const addSubscription = (userId, data) =>
+    apiFetch('/subscriptions', { method: 'POST', body: { ...data, userId } });
+
+export const updateSubscription = (id, data) =>
+    apiFetch(`/subscriptions/${id}`, { method: 'PUT', body: data });
+
+export const updateSubscriptionStatus = (id, status) =>
+    apiFetch(`/subscriptions/${id}/status`, { method: 'PUT', body: { status } });
+
+export const paySubscription = (id) =>
+    apiFetch(`/subscriptions/${id}/pay`, { method: 'PUT' });
+
+export const deleteSubscription = (id) =>
+    apiFetch(`/subscriptions/${id}`, { method: 'DELETE' });

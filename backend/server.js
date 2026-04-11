@@ -11,15 +11,20 @@ app.use(express.json());
 
 // Main DB Connection
 mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('MongoDB Connected - Main Connection'))
-  .catch(err => console.error(err));
+    .then(() => console.log('MongoDB Connected'))
+    .catch(err => console.error('MongoDB connection error:', err));
 
-// Agenda Dashboard
+// Agendash UI Dashboard
 app.use('/dash', Agendash(agenda));
 
-// Routes
+// API Routes
+// NOTE: /users/login must be mounted before generic user routes
+// to prevent Express matching "login" as an :id param.
 app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/users', require('./routes/users'));
+
+// Health check
+app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {

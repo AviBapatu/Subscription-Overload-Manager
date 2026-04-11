@@ -1,299 +1,410 @@
-import React, { useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchSubscriptions, seedUserIfNeeded } from '../lib/api';
+import {
+    AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+    PieChart, Pie, Cell, Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis
+} from 'recharts';
 import dayjs from 'dayjs';
+import relativeTime from 'dayjs/plugin/relativeTime';
+import { fetchStats, fetchUpcoming, fetchSpendingHistory, fetchCategoryBreakdown } from '../lib/api';
+import { useAuth } from '../lib/AuthContext';
 
-const Dashboard = () => {
-  useEffect(() => { seedUserIfNeeded() }, []);
+dayjs.extend(relativeTime);
 
-  const { data: subscriptions, isLoading } = useQuery({
-    queryKey: ['subscriptions'],
-    queryFn: fetchSubscriptions
-  });
+// ─── Palette for charts ────────────────────────────────────────────────────
+const CHART_COLORS = ['#0058bb', '#883c93', '#3853b7', '#3b82f6', '#8b5cf6'];
 
-  const totalMonthlyCost = subscriptions?.reduce((acc, sub) => {
-    if (sub.status !== 'ACTIVE') return acc;
-    if (sub.billingCycle === 'MONTHLY') return acc + sub.cost;
-    if (sub.billingCycle === 'YEARLY') return acc + (sub.cost / 12);
-    if (sub.billingCycle === 'WEEKLY') return acc + (sub.cost * 4.33);
-    return acc;
-  }, 0) || 0;
+// ─── Skeleton Loader ────────────────────────────────────────────────────────
+const Skeleton = ({ className = '' }) => (
+    <div className={`animate-pulse bg-surface-container-high rounded-xl ${className}`} />
+);
 
-  const activeCount = subscriptions?.filter(s => s.status === 'ACTIVE').length || 0;
-
-  return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
-      {/* Hero Section: Apple Fitness Rings */}
-      <section className="mb-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-        <div className="space-y-6">
-          <h1 className="text-6xl font-extrabold tracking-tighter text-on-surface leading-tight">
-            Your digital lifestyle, <br/>
-            <span className="text-primary">perfectly curated.</span>
-          </h1>
-          <p className="text-xl text-on-surface-variant leading-relaxed max-w-lg">
-            Manage {activeCount} active subscriptions. You've saved <span className="font-bold text-secondary">$42.50</span> this month through smart optimization.
-          </p>
-          <div className="flex gap-4">
-            <button className="bg-surface-container-highest px-8 py-4 rounded-full font-bold hover:bg-surface-container-high transition-all">View Audit</button>
-            <button className="bg-primary text-on-primary px-8 py-4 rounded-full font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all">Optimize Spend</button>
-          </div>
-        </div>
-        <div className="relative flex justify-center items-center h-[400px]">
-          {/* Outer Glow */}
-          <div className="absolute w-72 h-72 bg-primary/5 rounded-full blur-3xl"></div>
-          <svg className="w-80 h-80 transform -rotate-90">
-            {/* Ring 1: Budget */}
-            <circle className="text-surface-container-high" cx="160" cy="160" fill="transparent" r="140" stroke="currentColor" strokeWidth="24"></circle>
-            <circle cx="160" cy="160" fill="transparent" r="140" stroke="url(#gradient-blue)" strokeDasharray="879.6" strokeDashoffset="260" strokeLinecap="round" strokeWidth="24"></circle>
-            {/* Ring 2: Active */}
-            <circle className="text-surface-container-high" cx="160" cy="160" fill="transparent" r="110" stroke="currentColor" strokeWidth="24"></circle>
-            <circle cx="160" cy="160" fill="transparent" r="110" stroke="url(#gradient-purple)" strokeDasharray="691.1" strokeDashoffset="180" strokeLinecap="round" strokeWidth="24"></circle>
-            {/* Ring 3: Renewals */}
-            <circle className="text-surface-container-high" cx="160" cy="160" fill="transparent" r="80" stroke="currentColor" strokeWidth="24"></circle>
-            <circle cx="160" cy="160" fill="transparent" r="80" stroke="url(#gradient-teal)" strokeDasharray="502.6" strokeDashoffset="120" strokeLinecap="round" strokeWidth="24"></circle>
-            <defs>
-              <linearGradient id="gradient-blue" x1="0%" x2="100%" y1="0%" y2="0%">
-                <stop offset="0%" stopColor="#0058bb"></stop>
-                <stop offset="100%" stopColor="#6c9fff"></stop>
-              </linearGradient>
-              <linearGradient id="gradient-purple" x1="0%" x2="100%" y1="0%" y2="0%">
-                <stop offset="0%" stopColor="#883c93"></stop>
-                <stop offset="100%" stopColor="#f39cfb"></stop>
-              </linearGradient>
-              <linearGradient id="gradient-teal" x1="0%" x2="100%" y1="0%" y2="0%">
-                <stop offset="0%" stopColor="#3853b7"></stop>
-                <stop offset="100%" stopColor="#b4c1ff"></stop>
-              </linearGradient>
-            </defs>
-          </svg>
-          <div className="absolute flex flex-col items-center text-center">
-            <span className="text-4xl font-black tracking-tighter">${totalMonthlyCost.toFixed(0)}</span>
-            <span className="text-xs uppercase tracking-widest font-bold text-on-surface-variant">Monthly</span>
-          </div>
-        </div>
-      </section>
-
-      {/* Overview Cards: Bento Grid Style */}
-      <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
-        {/* Spend Card */}
-        <div className="relative overflow-hidden p-8 rounded-lg surface-container-lowest shadow-sm hover:shadow-md transition-all group bg-surface-container-lowest">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-primary/10 rounded-full blur-2xl group-hover:bg-primary/20 transition-all"></div>
-          <div className="flex flex-col h-full justify-between relative z-10">
+// ─── Stat Card ───────────────────────────────────────────────────────────────
+const StatCard = ({ icon, label, value, sub, color = 'primary', loading }) => (
+    <div className={`relative overflow-hidden p-7 rounded-xl bg-surface-container-lowest shadow-sm hover:shadow-lg transition-all group cursor-default`}>
+        <div className={`absolute -right-4 -top-4 w-28 h-28 bg-${color}/10 rounded-full blur-2xl group-hover:bg-${color}/20 transition-all`} />
+        <div className="relative z-10 flex flex-col h-full justify-between">
             <div>
-              <span className="material-symbols-outlined text-primary mb-4 block text-[32px]">payments</span>
-              <h3 className="text-on-surface-variant font-semibold mb-1">Total Monthly Spend</h3>
-              <p className="text-3xl font-black tracking-tight">${totalMonthlyCost.toFixed(2)}</p>
+                <span className={`material-symbols-outlined text-${color} mb-4 block text-[32px]`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                    {icon}
+                </span>
+                <h3 className="text-on-surface-variant font-semibold mb-1 text-sm">{label}</h3>
+                {loading ? <Skeleton className="h-8 w-24 mt-1" /> : (
+                    <p className="text-3xl font-black tracking-tight">{value}</p>
+                )}
             </div>
-            <div className="mt-4 flex items-center gap-2 text-sm font-medium text-error">
-              <span className="material-symbols-outlined text-xs">trending_up</span>
-              <span>4.2% from last month</span>
-            </div>
-          </div>
+            {loading ? <Skeleton className="h-4 w-32 mt-4" /> : (
+                <div className={`mt-4 flex items-center gap-2 text-sm font-medium text-on-surface-variant`}>
+                    {sub}
+                </div>
+            )}
         </div>
-
-        {/* Bills Card */}
-        <div className="relative overflow-hidden p-8 rounded-lg surface-container-lowest shadow-sm hover:shadow-md transition-all group bg-surface-container-lowest">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-tertiary/10 rounded-full blur-2xl group-hover:bg-tertiary/20 transition-all"></div>
-          <div className="flex flex-col h-full justify-between relative z-10">
-            <div>
-              <span className="material-symbols-outlined text-tertiary mb-4 block text-[32px]">calendar_today</span>
-              <h3 className="text-on-surface-variant font-semibold mb-1">Upcoming Bills</h3>
-              <p className="text-3xl font-black tracking-tight">$112.50</p>
-            </div>
-            <div className="mt-4 flex items-center gap-2 text-sm font-medium text-secondary">
-              <span>Next bill: Tomorrow</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Active Card */}
-        <div className="relative overflow-hidden p-8 rounded-lg surface-container-lowest shadow-sm hover:shadow-md transition-all group bg-surface-container-lowest">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-secondary/10 rounded-full blur-2xl group-hover:bg-secondary/20 transition-all"></div>
-          <div className="flex flex-col h-full justify-between relative z-10">
-            <div>
-              <span className="material-symbols-outlined text-secondary mb-4 block text-[32px]">verified_user</span>
-              <h3 className="text-on-surface-variant font-semibold mb-1">Active Services</h3>
-              <p className="text-3xl font-black tracking-tight">{activeCount}</p>
-            </div>
-            <div className="mt-4 flex items-center gap-2 text-sm font-medium text-on-surface-variant">
-              <span>3 trial periods ending</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Expensive Card */}
-        <div className="relative overflow-hidden p-8 rounded-lg surface-container-lowest shadow-sm hover:shadow-md transition-all group bg-surface-container-lowest">
-          <div className="absolute -right-4 -top-4 w-24 h-24 bg-error/10 rounded-full blur-2xl group-hover:bg-error/20 transition-all"></div>
-          <div className="flex flex-col h-full justify-between relative z-10">
-            <div>
-              <span className="material-symbols-outlined text-error mb-4 block text-[32px]">priority_high</span>
-              <h3 className="text-on-surface-variant font-semibold mb-1">Most Expensive</h3>
-              <p className="text-3xl font-black tracking-tight">Adobe CC</p>
-            </div>
-            <div className="mt-4 flex items-center gap-2 text-sm font-medium text-on-surface-variant">
-              <span>$54.99 per month</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Analytics & Timeline Section */}
-      <section className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-        {/* Category Chart & Monthly Graph */}
-        <div className="lg:col-span-2 space-y-10">
-          <div className="p-10 rounded-lg surface-container-lowest shadow-sm bg-surface-container-lowest">
-            <div className="flex justify-between items-end mb-10">
-              <div>
-                <h2 className="text-2xl font-bold tracking-tight mb-1">Spending Analytics</h2>
-                <p className="text-on-surface-variant">Trends over the last 6 months</p>
-              </div>
-              <div className="flex bg-surface-container-low p-1 rounded-full">
-                <button className="px-4 py-1.5 rounded-full text-sm font-bold bg-white shadow-sm">Month</button>
-                <button className="px-4 py-1.5 rounded-full text-sm font-bold text-on-surface-variant hover:bg-surface-bright/50 transition-all">Year</button>
-              </div>
-            </div>
-            {/* Spending Line Graph Visual */}
-            <div className="h-64 flex items-end justify-between gap-4 relative">
-              <div className="absolute inset-0 flex flex-col justify-between py-2">
-                <div className="border-t border-dashed border-outline-variant/20 w-full"></div>
-                <div className="border-t border-dashed border-outline-variant/20 w-full"></div>
-                <div className="border-t border-dashed border-outline-variant/20 w-full"></div>
-                <div className="border-t border-dashed border-outline-variant/20 w-full"></div>
-              </div>
-              <div className="flex-1 bg-surface-container-low rounded-t-lg h-[40%] relative group">
-                <div className="absolute inset-0 bg-primary/20 scale-y-0 group-hover:scale-y-100 origin-bottom transition-transform rounded-t-lg"></div>
-                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-on-background text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">$320</div>
-              </div>
-              <div className="flex-1 bg-surface-container-low rounded-t-lg h-[55%] relative group">
-                <div className="absolute inset-0 bg-primary/20 scale-y-0 group-hover:scale-y-100 origin-bottom transition-transform rounded-t-lg"></div>
-              </div>
-              <div className="flex-1 bg-surface-container-low rounded-t-lg h-[48%] relative group">
-                <div className="absolute inset-0 bg-primary/20 scale-y-0 group-hover:scale-y-100 origin-bottom transition-transform rounded-t-lg"></div>
-              </div>
-              <div className="flex-1 bg-surface-container-low rounded-t-lg h-[75%] relative group">
-                <div className="absolute inset-0 bg-primary/20 scale-y-0 group-hover:scale-y-100 origin-bottom transition-transform rounded-t-lg"></div>
-              </div>
-              <div className="flex-1 bg-primary/80 rounded-t-lg h-[92%] relative group">
-                <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-on-background text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">${totalMonthlyCost.toFixed(0)}</div>
-              </div>
-              <div className="flex-1 bg-surface-container-low rounded-t-lg h-[65%] relative group">
-                <div className="absolute inset-0 bg-primary/20 scale-y-0 group-hover:scale-y-100 origin-bottom transition-transform rounded-t-lg"></div>
-              </div>
-            </div>
-            <div className="flex justify-between mt-6 px-2 text-xs font-bold text-on-surface-variant uppercase tracking-widest">
-              <span>Jan</span><span>Feb</span><span>Mar</span><span>Apr</span><span>May</span><span>Jun</span>
-            </div>
-          </div>
-          
-          {/* Bento Category Chart */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="p-8 rounded-lg surface-container-lowest flex items-center gap-8 bg-surface-container-lowest shadow-sm">
-              <div className="relative w-32 h-32 flex-shrink-0">
-                <svg className="w-32 h-32 transform -rotate-90">
-                  <circle className="text-surface-container-high" cx="64" cy="64" fill="transparent" r="50" stroke="currentColor" strokeWidth="12"></circle>
-                  <circle cx="64" cy="64" fill="transparent" r="50" stroke="#883c93" strokeDasharray="314.15" strokeDashoffset="100" strokeLinecap="round" strokeWidth="12"></circle>
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center font-bold text-lg">68%</div>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold mb-2">Entertainment</h3>
-                <p className="text-on-surface-variant text-sm">Netflix, Disney+, Spotify, and 4 others.</p>
-              </div>
-            </div>
-            <div className="p-8 rounded-lg surface-container-lowest flex items-center gap-8 bg-surface-container-lowest shadow-sm">
-              <div className="relative w-32 h-32 flex-shrink-0">
-                <svg className="w-32 h-32 transform -rotate-90">
-                  <circle className="text-surface-container-high" cx="64" cy="64" fill="transparent" r="50" stroke="currentColor" strokeWidth="12"></circle>
-                  <circle cx="64" cy="64" fill="transparent" r="50" stroke="#0058bb" strokeDasharray="314.15" strokeDashoffset="220" strokeLinecap="round" strokeWidth="12"></circle>
-                </svg>
-                <div className="absolute inset-0 flex items-center justify-center font-bold text-lg">24%</div>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold mb-2">Software</h3>
-                <p className="text-on-surface-variant text-sm">Adobe CC, Notion, ChatGPT Plus.</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Timeline */}
-        <div className="p-8 rounded-lg surface-container-low flex flex-col h-full bg-surface-container-low shadow-sm">
-          <div className="mb-10">
-            <h2 className="text-2xl font-bold tracking-tight mb-1">Upcoming Renewals</h2>
-            <p className="text-on-surface-variant">Don't get caught by surprise</p>
-          </div>
-          <div className="relative flex-grow pl-8 space-y-10">
-            {/* Timeline Track */}
-            <div className="absolute left-[3px] top-2 bottom-2 w-1 bg-surface-container-highest rounded-full"></div>
-            
-            {/* Item 1 */}
-            <div className="relative">
-              <div className="absolute -left-[33px] top-1.5 w-4 h-4 bg-primary rounded-full ring-4 ring-white shadow-sm shadow-primary/30"></div>
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-primary uppercase tracking-widest mb-1">Oct 24 • Tomorrow</span>
-                <h4 className="font-bold text-lg">Netflix Premium</h4>
-                <p className="text-on-surface-variant text-sm">Monthly plan • $19.99</p>
-              </div>
-            </div>
-            {/* Item 2 */}
-            <div className="relative">
-              <div className="absolute -left-[33px] top-1.5 w-4 h-4 bg-tertiary rounded-full ring-4 ring-white shadow-sm shadow-tertiary/30"></div>
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-tertiary uppercase tracking-widest mb-1">Oct 28 • 4 days left</span>
-                <h4 className="font-bold text-lg">Adobe Creative Cloud</h4>
-                <p className="text-on-surface-variant text-sm">Professional suite • $54.99</p>
-              </div>
-            </div>
-            {/* Item 3 */}
-            <div className="relative">
-              <div className="absolute -left-[33px] top-1.5 w-4 h-4 bg-secondary rounded-full ring-4 ring-white shadow-sm shadow-secondary/30"></div>
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-secondary uppercase tracking-widest mb-1">Nov 02 • 9 days left</span>
-                <h4 className="font-bold text-lg">Spotify Family</h4>
-                <p className="text-on-surface-variant text-sm">Music streaming • $16.99</p>
-              </div>
-            </div>
-            {/* Item 4 */}
-            <div className="relative opacity-60">
-              <div className="absolute -left-[33px] top-1.5 w-4 h-4 bg-outline-variant rounded-full ring-4 ring-white"></div>
-              <div className="flex flex-col">
-                <span className="text-xs font-bold text-on-surface-variant uppercase tracking-widest mb-1">Nov 15 • 22 days left</span>
-                <h4 className="font-bold text-lg">Hulu (No Ads)</h4>
-                <p className="text-on-surface-variant text-sm">Streaming service • $14.99</p>
-              </div>
-            </div>
-          </div>
-          <button className="mt-12 w-full py-4 border-2 border-primary/20 rounded-full font-bold text-primary hover:bg-primary/5 transition-all">
-            Sync with Calendar
-          </button>
-        </div>
-      </section>
-
-      {/* Recommendation Banner */}
-      <section className="mt-16 relative rounded-xl overflow-hidden p-12 bg-on-background text-white shadow-2xl">
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuCV4UX7EetOF04R97HQFTQuFs2D-5cOzzd5mp3HJE3l9QQWCQ9G2d-S9m1-kjMFT0IUrtDaRgI4HpazRSzTC6DIOnnu5gPLygYUH1mjAzSqImVcbZy2X8SGV6YoUBMeXKbqG4WbnMO-tHZoVPTm7pykz3gikYXaJvMKNwSNbg3vavjnV4M0m4VTw4RZNE05gvTdYgnADUtqdCe1AKsk1akTH1JdEF96z0l5kjRPBF7_Hy1OrBlBJw5D13COxXq6cyco0B_7p5TAm1Km')", backgroundSize: 'cover', backgroundPosition: 'center' }}></div>
-        <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-          <div>
-            <h2 className="text-3xl font-black tracking-tighter mb-4">You could save $12.99/mo</h2>
-            <p className="text-white/70 text-lg leading-relaxed mb-6">Our algorithms detected overlapping features between Disney+ and Hulu. We recommend consolidating your plan into the Disney Bundle to reduce costs.</p>
-            <button className="bg-white text-on-background px-8 py-4 rounded-full font-bold hover:scale-105 transition-all">Switch &amp; Save</button>
-          </div>
-          <div className="flex justify-center">
-            <div className="glass-card p-6 rounded-lg bg-white/10 border border-white/10 flex items-center gap-6 max-w-sm">
-              <div className="flex -space-x-4">
-                <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center border-4 border-black/20 text-xs font-bold">D+</div>
-                <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center border-4 border-black/20 text-xs font-bold">H</div>
-              </div>
-              <div className="material-symbols-outlined text-4xl text-white/40">arrow_forward</div>
-              <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center border-4 border-black/20">
-                <span className="material-symbols-outlined text-black" style={{ fontVariationSettings: "'FILL' 1" }}>stars</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
     </div>
-  );
+);
+
+// ─── Custom Tooltip for AreaChart ─────────────────────────────────────────────
+const AreaTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className="glass-card px-4 py-3 rounded-xl shadow-lg border border-white/40">
+            <p className="text-xs font-bold text-on-surface-variant mb-1">{label}</p>
+            <p className="text-lg font-black text-primary">${payload[0].value?.toFixed(2)}</p>
+        </div>
+    );
+};
+
+// ─── Custom Tooltip for PieChart ──────────────────────────────────────────────
+const PieTooltip = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const d = payload[0].payload;
+    return (
+        <div className="glass-card px-4 py-3 rounded-xl shadow-lg border border-white/40">
+            <p className="text-sm font-bold text-on-surface">{d.name}</p>
+            <p className="text-xs text-on-surface-variant">{d.count} sub{d.count !== 1 ? 's' : ''}</p>
+            <p className="text-primary font-black">${d.value}/mo · {d.percentage}%</p>
+        </div>
+    );
+};
+
+// ─── Timeline Item ────────────────────────────────────────────────────────────
+const TIMELINE_COLORS = ['primary', 'tertiary', 'secondary', 'error', 'on-background'];
+const TimelineItem = ({ sub, index, isLast }) => {
+    const color = TIMELINE_COLORS[index % TIMELINE_COLORS.length];
+    const daysLeft = dayjs(sub.nextBillingDate).diff(dayjs(), 'day');
+    const label = daysLeft === 0 ? 'Today' : daysLeft === 1 ? 'Tomorrow' : `${daysLeft} days left`;
+    const dateStr = dayjs(sub.nextBillingDate).format('MMM DD');
+    return (
+        <div className={`relative ${isLast ? 'opacity-50' : ''}`}>
+            <div className={`absolute -left-[33px] top-1.5 w-4 h-4 bg-${color} rounded-full ring-4 ring-white shadow-sm shadow-${color}/30`} />
+            <div className="flex flex-col">
+                <span className={`text-xs font-bold text-${color} uppercase tracking-widest mb-1`}>
+                    {dateStr} • {label}
+                </span>
+                <h4 className="font-bold text-lg text-on-surface">{sub.serviceName}</h4>
+                <p className="text-on-surface-variant text-sm">{sub.billingCycle.charAt(0) + sub.billingCycle.slice(1).toLowerCase()} plan · ${sub.cost.toFixed(2)}</p>
+            </div>
+        </div>
+    );
+};
+
+// ─── Main Dashboard ───────────────────────────────────────────────────────────
+const Dashboard = () => {
+    const { userId } = useAuth();
+
+    const { data: stats, isLoading: statsLoading } = useQuery({
+        queryKey: ['stats', userId],
+        queryFn: () => fetchStats(userId),
+        enabled: !!userId
+    });
+
+    const { data: upcoming, isLoading: upcomingLoading } = useQuery({
+        queryKey: ['upcoming', userId],
+        queryFn: () => fetchUpcoming(userId, 5),
+        enabled: !!userId
+    });
+
+    const { data: spendingHistory, isLoading: historyLoading } = useQuery({
+        queryKey: ['spending-history', userId],
+        queryFn: () => fetchSpendingHistory(userId),
+        enabled: !!userId
+    });
+
+    const { data: categoryBreakdown, isLoading: categoryLoading } = useQuery({
+        queryKey: ['category-breakdown', userId],
+        queryFn: () => fetchCategoryBreakdown(userId),
+        enabled: !!userId
+    });
+
+    // ── Hero ring progress (budget ring = % of $500 budget used) ──────────────
+    const BUDGET = 500;
+    const ringPct = stats ? Math.min((stats.monthlySpend / BUDGET) * 100, 100) : 0;
+    const RING_R1 = 140, RING_R2 = 110, RING_R3 = 80;
+    const circ = (r) => 2 * Math.PI * r;
+
+    // Outer ring = spend vs budget
+    const ring1Offset = circ(RING_R1) * (1 - ringPct / 100);
+    // Middle ring = active count vs 20 (arbitrary max)
+    const activePct = stats ? Math.min((stats.activeCount / 20) * 100, 100) : 0;
+    const ring2Offset = circ(RING_R2) * (1 - activePct / 100);
+    // Inner ring = upcoming 7-day cost vs monthly spend
+    const upcomingPct = stats ? Math.min((stats.upcoming7DayCost / (stats.monthlySpend || 1)) * 100, 100) : 0;
+    const ring3Offset = circ(RING_R3) * (1 - upcomingPct / 100);
+
+    return (
+        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+
+            {/* ── Hero ──────────────────────────────────────────────────────── */}
+            <section className="mb-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                <div className="space-y-6">
+                    <h1 className="text-5xl xl:text-6xl font-extrabold tracking-tighter text-on-surface leading-tight">
+                        Your digital lifestyle,<br />
+                        <span className="text-primary">perfectly curated.</span>
+                    </h1>
+                    <p className="text-xl text-on-surface-variant leading-relaxed max-w-lg">
+                        Manage <span className="font-bold text-on-surface">{stats?.activeCount ?? '…'} active subscriptions</span>.
+                        {' '}Spending <span className="font-bold text-primary">${stats?.monthlySpend?.toFixed(2) ?? '…'}</span> this month.
+                    </p>
+                    <div className="flex gap-4 flex-wrap">
+                        <a href="/subscriptions"
+                            className="bg-surface-container-highest px-8 py-4 rounded-full font-bold hover:bg-surface-container-high transition-all text-on-surface">
+                            View All Subs
+                        </a>
+                        <a href="/subscriptions"
+                            className="bg-primary text-on-primary px-8 py-4 rounded-full font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all">
+                            + Add Subscription
+                        </a>
+                    </div>
+                </div>
+
+                {/* Hero Rings */}
+                <div className="relative flex justify-center items-center h-[380px]">
+                    <div className="absolute w-72 h-72 bg-primary/5 rounded-full blur-3xl" />
+                    <svg className="w-80 h-80 transform -rotate-90" viewBox="0 0 320 320">
+                        {/* Ring tracks */}
+                        <circle cx="160" cy="160" fill="transparent" r={RING_R1} stroke="currentColor" strokeWidth="22" className="text-surface-container-high" />
+                        <circle cx="160" cy="160" fill="transparent" r={RING_R2} stroke="currentColor" strokeWidth="22" className="text-surface-container-high" />
+                        <circle cx="160" cy="160" fill="transparent" r={RING_R3} stroke="currentColor" strokeWidth="22" className="text-surface-container-high" />
+                        {/* Ring fills */}
+                        <circle cx="160" cy="160" fill="transparent" r={RING_R1}
+                            stroke="url(#g-blue)" strokeDasharray={circ(RING_R1)}
+                            strokeDashoffset={ring1Offset} strokeLinecap="round" strokeWidth="22"
+                            style={{ transition: 'stroke-dashoffset 1.2s ease' }} />
+                        <circle cx="160" cy="160" fill="transparent" r={RING_R2}
+                            stroke="url(#g-purple)" strokeDasharray={circ(RING_R2)}
+                            strokeDashoffset={ring2Offset} strokeLinecap="round" strokeWidth="22"
+                            style={{ transition: 'stroke-dashoffset 1.2s ease 0.2s' }} />
+                        <circle cx="160" cy="160" fill="transparent" r={RING_R3}
+                            stroke="url(#g-teal)" strokeDasharray={circ(RING_R3)}
+                            strokeDashoffset={ring3Offset} strokeLinecap="round" strokeWidth="22"
+                            style={{ transition: 'stroke-dashoffset 1.2s ease 0.4s' }} />
+                        <defs>
+                            <linearGradient id="g-blue" x1="0%" x2="100%" y1="0%" y2="0%">
+                                <stop offset="0%" stopColor="#0058bb" />
+                                <stop offset="100%" stopColor="#6c9fff" />
+                            </linearGradient>
+                            <linearGradient id="g-purple" x1="0%" x2="100%" y1="0%" y2="0%">
+                                <stop offset="0%" stopColor="#883c93" />
+                                <stop offset="100%" stopColor="#f39cfb" />
+                            </linearGradient>
+                            <linearGradient id="g-teal" x1="0%" x2="100%" y1="0%" y2="0%">
+                                <stop offset="0%" stopColor="#3853b7" />
+                                <stop offset="100%" stopColor="#b4c1ff" />
+                            </linearGradient>
+                        </defs>
+                    </svg>
+                    <div className="absolute flex flex-col items-center text-center">
+                        {statsLoading
+                            ? <Skeleton className="w-20 h-10" />
+                            : <span className="text-4xl font-black tracking-tighter">${stats?.monthlySpend?.toFixed(0)}</span>
+                        }
+                        <span className="text-xs uppercase tracking-widest font-bold text-on-surface-variant mt-1">/ month</span>
+                    </div>
+                    {/* Ring Labels */}
+                    <div className="absolute bottom-0 flex gap-6 text-xs font-bold text-on-surface-variant">
+                        <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-primary inline-block" />Budget
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-tertiary inline-block" />Active
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full bg-secondary inline-block" />Due Soon
+                        </span>
+                    </div>
+                </div>
+            </section>
+
+            {/* ── Overview Cards ─────────────────────────────────────────────── */}
+            <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-10">
+                <StatCard icon="payments" label="Monthly Spend" color="primary"
+                    value={`$${stats?.monthlySpend?.toFixed(2) ?? '0'}`}
+                    sub={<span className="text-on-surface-variant">across all active services</span>}
+                    loading={statsLoading} />
+                <StatCard icon="calendar_today" label="Due This Week" color="tertiary"
+                    value={`$${stats?.upcoming7DayCost?.toFixed(2) ?? '0'}`}
+                    sub={<span className="text-on-surface-variant">in the next 7 days</span>}
+                    loading={statsLoading} />
+                <StatCard icon="verified_user" label="Active Services" color="secondary"
+                    value={stats?.activeCount ?? '0'}
+                    sub={<span className="text-on-surface-variant">{stats?.pausedCount ?? 0} paused · {stats?.cancelledCount ?? 0} cancelled</span>}
+                    loading={statsLoading} />
+                <StatCard icon="priority_high" label="Most Expensive" color="error"
+                    value={stats?.mostExpensive?.name ?? '—'}
+                    sub={<span className="text-on-surface-variant">
+                        {stats?.mostExpensive
+                            ? `$${stats.mostExpensive.cost} · ${stats.mostExpensive.billingCycle.toLowerCase()}`
+                            : 'No active subscriptions'}
+                    </span>}
+                    loading={statsLoading} />
+            </section>
+
+            {/* ── Analytics + Timeline ────────────────────────────────────────── */}
+            <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+                {/* Left column: AreaChart + PieChart */}
+                <div className="lg:col-span-2 space-y-8">
+
+                    {/* AreaChart: Spending History */}
+                    <div className="p-8 rounded-xl bg-surface-container-lowest shadow-sm">
+                        <div className="flex justify-between items-end mb-8">
+                            <div>
+                                <h2 className="text-xl font-bold tracking-tight mb-1">Spending Analytics</h2>
+                                <p className="text-on-surface-variant text-sm">Monthly trend — last 6 months</p>
+                            </div>
+                        </div>
+                        {historyLoading ? (
+                            <Skeleton className="h-64 w-full" />
+                        ) : (
+                            <ResponsiveContainer width="100%" height={240}>
+                                <AreaChart data={spendingHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#0058bb" stopOpacity={0.18} />
+                                            <stop offset="95%" stopColor="#0058bb" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e8ec" vertical={false} />
+                                    <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 700, fill: '#595c5e' }}
+                                        tickFormatter={(v) => v.split(' ')[0]} axisLine={false} tickLine={false} />
+                                    <YAxis tick={{ fontSize: 11, fill: '#595c5e' }} tickFormatter={v => `$${v}`}
+                                        axisLine={false} tickLine={false} width={52} />
+                                    <Tooltip content={<AreaTooltip />} />
+                                    <Area type="monotone" dataKey="spend" stroke="#0058bb" strokeWidth={2.5}
+                                        fill="url(#areaGrad)" dot={{ fill: '#0058bb', r: 4, strokeWidth: 0 }}
+                                        activeDot={{ r: 6, fill: '#0058bb', stroke: '#fff', strokeWidth: 2 }} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        )}
+                    </div>
+
+                    {/* PieChart: Category Breakdown */}
+                    <div className="p-8 rounded-xl bg-surface-container-lowest shadow-sm">
+                        <div className="mb-6">
+                            <h2 className="text-xl font-bold tracking-tight mb-1">Spending Breakdown</h2>
+                            <p className="text-on-surface-variant text-sm">By billing cycle type</p>
+                        </div>
+                        {categoryLoading ? (
+                            <Skeleton className="h-52 w-full" />
+                        ) : categoryBreakdown?.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center h-48 text-on-surface-variant">
+                                <span className="material-symbols-outlined text-5xl mb-3 opacity-30">pie_chart</span>
+                                <p className="font-medium">No active subscriptions yet</p>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col lg:flex-row items-center gap-6">
+                                <ResponsiveContainer width="100%" height={200}>
+                                    <PieChart>
+                                        <Pie data={categoryBreakdown} dataKey="value" nameKey="name"
+                                            cx="50%" cy="50%" innerRadius={55} outerRadius={85}
+                                            paddingAngle={3} strokeWidth={0}>
+                                            {categoryBreakdown?.map((_, i) => (
+                                                <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip content={<PieTooltip />} />
+                                        <Legend
+                                            formatter={(v) => <span className="text-xs font-bold text-on-surface-variant">{v}</span>}
+                                            iconSize={8} iconType="circle" />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                                {/* Breakdown list */}
+                                <div className="w-full lg:max-w-xs space-y-3">
+                                    {categoryBreakdown?.map((d, i) => (
+                                        <div key={d.name} className="flex items-center justify-between p-3 rounded-lg bg-surface-container-low">
+                                            <div className="flex items-center gap-3">
+                                                <span className="w-3 h-3 rounded-full flex-shrink-0"
+                                                    style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                                                <div>
+                                                    <p className="font-bold text-sm text-on-surface">{d.name}</p>
+                                                    <p className="text-xs text-on-surface-variant">{d.count} subscription{d.count !== 1 ? 's' : ''}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="font-black text-sm text-on-surface">${d.value}/mo</p>
+                                                <p className="text-xs text-on-surface-variant">{d.percentage}%</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* Right column: Timeline */}
+                <div className="p-8 rounded-xl bg-surface-container-low shadow-sm flex flex-col">
+                    <div className="mb-8">
+                        <h2 className="text-xl font-bold tracking-tight mb-1">Upcoming Renewals</h2>
+                        <p className="text-on-surface-variant text-sm">Don't get caught by surprise</p>
+                    </div>
+
+                    {upcomingLoading ? (
+                        <div className="space-y-6 flex-grow">
+                            {Array.from({ length: 4 }).map((_, i) => (
+                                <Skeleton key={i} className="h-16 w-full" />
+                            ))}
+                        </div>
+                    ) : upcoming?.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center flex-grow text-on-surface-variant">
+                            <span className="material-symbols-outlined text-5xl mb-3 opacity-30">event_available</span>
+                            <p className="font-medium text-sm">No upcoming renewals</p>
+                        </div>
+                    ) : (
+                        <div className="relative flex-grow pl-8 space-y-8">
+                            <div className="absolute left-[3px] top-2 bottom-2 w-0.5 bg-surface-container-highest rounded-full" />
+                            {upcoming?.map((sub, i) => (
+                                <TimelineItem key={sub._id} sub={sub} index={i} isLast={i === upcoming.length - 1} />
+                            ))}
+                        </div>
+                    )}
+
+                    <a href="/subscriptions"
+                        className="mt-10 w-full py-4 border-2 border-primary/20 rounded-full font-bold text-primary hover:bg-primary/5 transition-all text-center block">
+                        View All Subscriptions
+                    </a>
+                </div>
+            </section>
+
+            {/* ── Smart Recommendation Banner ──────────────────────────────────── */}
+            {stats && stats.activeCount > 0 && (
+                <section className="mt-8 relative rounded-2xl overflow-hidden p-10 md:p-12 bg-on-background text-white shadow-2xl">
+                    <div className="absolute inset-0 opacity-10"
+                        style={{ backgroundImage: "radial-gradient(circle at 20% 50%, #6c9fff 0%, transparent 60%), radial-gradient(circle at 80% 20%, #f39cfb 0%, transparent 60%)" }} />
+                    <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                        <div>
+                            <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-2 text-xs font-bold mb-4 uppercase tracking-widest">
+                                <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                                AI Insight
+                            </div>
+                            <h2 className="text-2xl md:text-3xl font-black tracking-tighter mb-3">
+                                Optimize your ${stats.monthlySpend.toFixed(0)}/mo spend
+                            </h2>
+                            <p className="text-white/70 text-base leading-relaxed mb-6">
+                                You have {stats.activeCount} active subscriptions. Our algorithms can help identify overlapping services and unused plans to reduce costs.
+                            </p>
+                            <a href="/subscriptions"
+                                className="inline-block bg-white text-on-background px-8 py-3.5 rounded-full font-bold hover:scale-105 transition-all">
+                                Review & Optimize
+                            </a>
+                        </div>
+                        <div className="flex justify-center">
+                            <div className="glass-card p-6 rounded-2xl bg-white/10 border border-white/10 flex items-center gap-6">
+                                <div className="text-center">
+                                    <p className="text-3xl font-black">{stats.activeCount}</p>
+                                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mt-1">Active</p>
+                                </div>
+                                <span className="material-symbols-outlined text-3xl text-white/30">arrow_forward</span>
+                                <div className="text-center">
+                                    <p className="text-3xl font-black text-green-400">${stats.monthlySpend.toFixed(0)}</p>
+                                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mt-1">Per Month</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            )}
+        </div>
+    );
 };
 
 export default Dashboard;
