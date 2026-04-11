@@ -15,13 +15,16 @@ const getStoredAuth = () => {
 export const AuthProvider = ({ children }) => {
     const [user, setUserState] = useState(() => getStoredAuth());
 
-    const setUser = useCallback((userData) => {
-        if (userData) {
-            localStorage.setItem('som_user', JSON.stringify(userData));
+    const setUser = useCallback((data) => {
+        if (data && data.user && data.token) {
+            localStorage.setItem('som_user', JSON.stringify(data.user));
+            localStorage.setItem('som_token', data.token);
+            setUserState(data.user);
         } else {
             localStorage.removeItem('som_user');
+            localStorage.removeItem('som_token');
+            setUserState(null);
         }
-        setUserState(userData);
     }, []);
 
     const logout = useCallback(() => {

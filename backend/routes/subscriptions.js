@@ -3,6 +3,18 @@ const router = express.Router();
 const Subscription = require('../models/Subscription');
 const User = require('../models/User');
 const dayjs = require('dayjs');
+const auth = require('../middleware/auth');
+
+// Secure all subscription routes
+router.use(auth);
+
+// Prevent cross-user data access
+router.param('userId', (req, res, next, userId) => {
+    if (req.user.id !== userId) {
+        return res.status(403).json({ error: 'Unauthorized access to another user\'s profile' });
+    }
+    next();
+});
 
 // ─────────────────────────────────────────
 // Helpers

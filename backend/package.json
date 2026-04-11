@@ -12,12 +12,15 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "agenda": "^5.0.0",
+    "@getbrevo/brevo": "^5.0.4",
+    "agenda": "^6.2.4",
     "agendash": "^8.2.2",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dayjs": "^1.11.20",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.4.1"
   },
   "devDependencies": {

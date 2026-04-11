@@ -2,8 +2,11 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 // ─── Generic fetch helper ────────────────────────────────────────────────────
 const apiFetch = async (path, options = {}) => {
+    const token = localStorage.getItem('som_token');
+    const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
+
     const res = await fetch(`${API_URL}${path}`, {
-        headers: { 'Content-Type': 'application/json', ...options.headers },
+        headers: { 'Content-Type': 'application/json', ...authHeaders, ...options.headers },
         ...options,
         body: options.body ? JSON.stringify(options.body) : undefined,
     });
