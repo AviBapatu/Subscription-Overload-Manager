@@ -2,8 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const { agenda } = require('./agenda');
-const { createExpressMiddleware: Agendash } = require('agendash');
+const { initCronJobs } = require('./jobs/scheduler');
 
 const app = express();
 app.use(cors());
@@ -14,8 +13,7 @@ mongoose.connect(process.env.MONGO_URI)
     .then(() => console.log('MongoDB Connected'))
     .catch(err => console.error('MongoDB connection error:', err));
 
-// Agendash UI Dashboard
-app.use('/dash', Agendash(agenda));
+
 
 // API Routes
 // NOTE: /users/login must be mounted before generic user routes
@@ -29,4 +27,5 @@ app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    initCronJobs();
 });
