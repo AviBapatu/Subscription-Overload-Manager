@@ -42,6 +42,47 @@ const getRenewalAlertHTML = (sub) => {
     `;
 };
 
+/**
+ * Generates the HTML string for an OTP password reset email.
+ * 
+ * @param {string} otp The 6-digit plain text OTP code
+ * @returns {string} The fully compiled HTML email template
+ */
+const getOtpEmailHTML = (otp) => {
+    return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { font-family: 'Inter', sans-serif; background: #f0f4f8; margin: 0; padding: 40px; text-align: center; }
+          .container { max-width: 600px; background: white; padding: 40px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); margin: 0 auto; }
+          .header { color: #1a73e8; margin-top: 0; font-size: 24px; font-weight: 800; }
+          .message { font-size: 16px; color: #4a5568; line-height: 1.6; }
+          .highlight { font-weight: 700; color: #1a202c; }
+          .otp-badge { background: #e8f0fe; color: #1a73e8; padding: 12px 24px; font-size: 32px; font-weight: 900; letter-spacing: 4px; border-radius: 8px; display: inline-block; margin-top: 15px; }
+          .warning { margin-top: 30px; font-size: 12px; color: #a0aec0; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <h2 class="header">Password Reset Request</h2>
+          <p class="message">
+            We received a request to reset the password for your Subscription Overload Manager account. Enter the following perfectly-secure OTP code.
+          </p>
+          <div class="otp-badge">
+            ${otp}
+          </div>
+          <p class="warning">
+            This code will expire in 10 minutes. If you did not request a password reset, please ignore this email.
+          </p>
+        </div>
+      </body>
+    </html>
+    `;
+};
+
 module.exports = {
-    getRenewalAlertHTML
+    getRenewalAlertHTML,
+    getOtpEmailHTML
 };

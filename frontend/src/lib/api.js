@@ -24,6 +24,15 @@ export const registerUser = (email, password, name) =>
 export const loginUser = (email, password) =>
     apiFetch('/users/login', { method: 'POST', body: { email, password } });
 
+export const requestPasswordReset = (email) =>
+    apiFetch('/users/forgot-password', { method: 'POST', body: { email } });
+
+export const verifyResetOtp = (email, otp) =>
+    apiFetch('/users/verify-otp', { method: 'POST', body: { email, otp } });
+
+export const resetPassword = (email, otp, newPassword) =>
+    apiFetch('/users/reset-password', { method: 'POST', body: { email, otp, newPassword } });
+
 // ─── Users ───────────────────────────────────────────────────────────────────
 export const fetchUser = (userId) =>
     apiFetch(`/users/${userId}`);

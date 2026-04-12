@@ -1,4 +1,5 @@
 const { BrevoClient } = require('@getbrevo/brevo');
+const { getOtpEmailHTML } = require('../templates/emailTemplates');
 
 // Brevo API Configuration
 const client = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
@@ -29,6 +30,18 @@ const sendBrevoEmail = async (to, subject, htmlContent) => {
   }
 };
 
+/**
+ * Generates and sends an OTP email.
+ * 
+ * @param {string} to - The recipient's email
+ * @param {string} otp - The plain text 6-digit OTP code
+ */
+const sendOtpEmail = async (to, otp) => {
+    const htmlContent = getOtpEmailHTML(otp);
+    return sendBrevoEmail(to, 'Password Reset Request', htmlContent);
+};
+
 module.exports = {
-  sendBrevoEmail
+  sendBrevoEmail,
+  sendOtpEmail
 };
