@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    PieChart, Pie, Cell, Legend, RadarChart, Radar, PolarGrid, PolarAngleAxis
+    PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
@@ -115,7 +115,7 @@ const Dashboard = () => {
         enabled: !!userId
     });
 
-    // ── Hero ring progress (budget ring = % of $500 budget used) ──────────────
+    // ── Hero ring progress ────────────────────────────────────────────────────
     const BUDGET = 500;
     const ringPct = stats ? Math.min((stats.monthlySpend / BUDGET) * 100, 100) : 0;
     const RING_R1 = 140, RING_R2 = 110, RING_R3 = 80;
@@ -123,7 +123,7 @@ const Dashboard = () => {
 
     // Outer ring = spend vs budget
     const ring1Offset = circ(RING_R1) * (1 - ringPct / 100);
-    // Middle ring = active count vs 20 (arbitrary max)
+    // Middle ring = active count vs 20
     const activePct = stats ? Math.min((stats.activeCount / 20) * 100, 100) : 0;
     const ring2Offset = circ(RING_R2) * (1 - activePct / 100);
     // Inner ring = upcoming 7-day cost vs monthly spend
@@ -281,7 +281,7 @@ const Dashboard = () => {
                     <div className="p-8 rounded-xl bg-surface-container-lowest shadow-sm">
                         <div className="mb-6">
                             <h2 className="text-xl font-bold tracking-tight mb-1">Spending Breakdown</h2>
-                            <p className="text-on-surface-variant text-sm">By billing cycle type</p>
+                            <p className="text-on-surface-variant text-sm">By category</p>
                         </div>
                         {categoryLoading ? (
                             <Skeleton className="h-52 w-full" />
@@ -384,7 +384,7 @@ const Dashboard = () => {
                             </p>
                             <a href="/subscriptions"
                                 className="inline-block bg-white text-on-background px-8 py-3.5 rounded-full font-bold hover:scale-105 transition-all">
-                                Review & Optimize
+                                Review &amp; Optimize
                             </a>
                         </div>
                         <div className="flex justify-center">

@@ -123,26 +123,29 @@ exports.getCategoryBreakdown = async (req, res) => {
 
         const groups = {};
         subs.forEach(sub => {
-            const key = sub.billingCycle;
-            if (!groups[key]) groups[key] = { label: key, totalMonthly: 0, count: 0 };
+            const key = sub.category || 'Other';
+            if (!groups[key]) groups[key] = { totalMonthly: 0, count: 0 };
             groups[key].totalMonthly += toMonthly(sub);
             groups[key].count += 1;
         });
 
         const totalMonthly = Object.values(groups).reduce((a, g) => a + g.totalMonthly, 0);
 
-        const breakdown = Object.values(groups).map(g => ({
-            name: g.label === 'MONTHLY' ? 'Monthly' : g.label === 'YEARLY' ? 'Annual' : 'Weekly',
-            value: parseFloat(g.totalMonthly.toFixed(2)),
-            count: g.count,
-            percentage: totalMonthly > 0 ? parseFloat(((g.totalMonthly / totalMonthly) * 100).toFixed(1)) : 0
-        }));
+        const breakdown = Object.entries(groups)
+            .map(([name, g]) => ({
+                name,
+                value: parseFloat(g.totalMonthly.toFixed(2)),
+                count: g.count,
+                percentage: totalMonthly > 0 ? parseFloat(((g.totalMonthly / totalMonthly) * 100).toFixed(1)) : 0
+            }))
+            .sort((a, b) => b.value - a.value);
 
         res.json(breakdown);
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
 };
+
 
 exports.createSubscription = async (req, res) => {
     try {

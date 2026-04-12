@@ -28,7 +28,7 @@ const ProtectedRoute = ({ children }) => {
 const AuthenticatedShell = () => (
     <div className="flex flex-col min-h-screen">
         <TopNavBar />
-        <main className="flex-1 pt-28 pb-20 px-6 md:px-10 max-w-[1600px] mx-auto w-full">
+        <main className="flex-1 pt-28 pb-20 px-6 md:px-10 max-w-[1400px] mx-auto w-full">
             <Routes>
                 <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 <Route path="/subscriptions" element={<ProtectedRoute><SubscriptionsGrid /></ProtectedRoute>} />
