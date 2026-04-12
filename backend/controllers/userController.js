@@ -54,8 +54,26 @@ exports.registerUser = async (req, res) => {
             timezone: timezone || 'UTC',
             preferences: {
                 notifyViaEmail: true,
-                notifyViaWhatsApp: false,
-                alertDaysBefore: 3
+                alertDaysBefore: 3,
+                notifUpcomingRenewals: true,
+                notifPriceIncreases: false,
+                notifFailedPayments: true,
+                notifFreeTrialEnding: true,
+                notifYearlyOnly: false,
+                multipleReminders: false,
+                reminderD7: false,
+                reminderD3: true,
+                reminderD1: false,
+                reminderBilling: false,
+                quietHoursEnabled: false,
+                quietHoursStart: '22:00',
+                quietHoursEnd: '08:00',
+                weeklySummary: false,
+                budgetMonthly: 0,
+                budgetAlertAt80: false,
+                budgetAlertOnNew: false,
+                perSubOverrides: false,
+                snoozeUntil: null
             }
         });
         await user.save();
@@ -107,7 +125,6 @@ exports.updateUserPreferences = async (req, res) => {
         for (const sub of subs) {
             const alertDays = user.preferences?.alertDaysBefore || 3;
             sub.notifyViaEmail = user.preferences?.notifyViaEmail;
-            sub.notifyViaWhatsApp = user.preferences?.notifyViaWhatsApp;
             sub.alertDate = dayjs(sub.nextBillingDate).subtract(alertDays, 'day').startOf('day').toDate();
             await sub.save();
         }

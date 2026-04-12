@@ -8,9 +8,27 @@ const UserSchema = new mongoose.Schema({
   timezone: { type: String, default: 'UTC' },
   name: { type: String },
   preferences: {
-    notifyViaEmail: { type: Boolean, default: true },
-    notifyViaWhatsApp: { type: Boolean, default: false },
-    alertDaysBefore: { type: Number, default: 3 }
+    notifyViaEmail:        { type: Boolean, default: true   },
+    alertDaysBefore:       { type: Number,  default: 3      },
+    notifUpcomingRenewals: { type: Boolean, default: true   },
+    notifPriceIncreases:   { type: Boolean, default: false  },
+    notifFailedPayments:   { type: Boolean, default: true   },
+    notifFreeTrialEnding:  { type: Boolean, default: true   },
+    notifYearlyOnly:       { type: Boolean, default: false  },
+    multipleReminders:     { type: Boolean, default: false  },
+    reminderD7:            { type: Boolean, default: false  },
+    reminderD3:            { type: Boolean, default: true   },
+    reminderD1:            { type: Boolean, default: false  },
+    reminderBilling:       { type: Boolean, default: false  },
+    quietHoursEnabled:     { type: Boolean, default: false  },
+    quietHoursStart:       { type: String,  default: '22:00'},
+    quietHoursEnd:         { type: String,  default: '08:00'},
+    weeklySummary:         { type: Boolean, default: false  },
+    budgetMonthly:         { type: Number,  default: 0      },
+    budgetAlertAt80:       { type: Boolean, default: false  },
+    budgetAlertOnNew:      { type: Boolean, default: false  },
+    perSubOverrides:       { type: Boolean, default: false  },
+    snoozeUntil:           { type: String,  default: null   }
   }
 }, { timestamps: true });
 
