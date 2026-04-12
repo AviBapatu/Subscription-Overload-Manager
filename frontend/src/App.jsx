@@ -25,22 +25,32 @@ const ProtectedRoute = ({ children }) => {
     return children;
 };
 
+const AuthenticatedShell = () => (
+    <div className="flex flex-col min-h-screen">
+        <TopNavBar />
+        <main className="flex-1 pt-28 pb-20 px-6 md:px-10 max-w-[1600px] mx-auto w-full">
+            <Routes>
+                <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+                <Route path="/subscriptions" element={<ProtectedRoute><SubscriptionsGrid /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+        </main>
+        <MobileNav />
+    </div>
+);
+
 const AppShell = () => {
     const { isAuthenticated } = useAuth();
     return (
-        <div className="flex flex-col min-h-screen">
-            {isAuthenticated && <TopNavBar />}
-            <main className={`flex-1 ${isAuthenticated ? 'pt-28 pb-20 px-6 md:px-10 max-w-[1600px] mx-auto w-full' : ''}`}>
-                <Routes>
-                    <Route path="/login" element={<Login />} />
-                    <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-                    <Route path="/subscriptions" element={<ProtectedRoute><SubscriptionsGrid /></ProtectedRoute>} />
-                    <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-                    <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-            </main>
-            {isAuthenticated && <MobileNav />}
-        </div>
+        <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="*" element={
+                isAuthenticated
+                    ? <AuthenticatedShell />
+                    : <Navigate to="/login" replace />
+            } />
+        </Routes>
     );
 };
 
