@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { fetchUser, updateUserPreferences } from '../lib/api';
+import { fetchUser, updateUserPreferences, updateUserProfile } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 
 const Profile = () => {
@@ -16,14 +16,22 @@ const Profile = () => {
 
     const [prefs, setPrefs] = useState({
         notifyViaEmail: true,
-        notifyViaWhatsApp: false,
         alertDaysBefore: 3
     });
+
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [editingPhone, setEditingPhone] = useState(false);
+    const [phoneDraft, setPhoneDraft] = useState('');
+    const [phoneSaved, setPhoneSaved] = useState(false);
 
     // Sync local state when user data is fetched
     useEffect(() => {
         if (user && user.preferences) {
             setPrefs(user.preferences);
+        }
+        if (user?.phoneNumber !== undefined) {
+            setPhoneNumber(user.phoneNumber || '');
+            setPhoneDraft(user.phoneNumber || '');
         }
     }, [user]);
 
@@ -36,6 +44,21 @@ const Profile = () => {
         const updated = { ...prefs, [key]: !prefs[key] };
         setPrefs(updated);
         prefMut.mutate(updated);
+    };
+
+    const profileMut = useMutation({
+        mutationFn: (data) => updateUserProfile(userId, data),
+        onSuccess: () => {
+            queryClient.invalidateQueries(['user', userId]);
+            setEditingPhone(false);
+            setPhoneSaved(true);
+            setTimeout(() => setPhoneSaved(false), 2500);
+        }
+    });
+
+    const handlePhoneSave = () => {
+        setPhoneNumber(phoneDraft);
+        profileMut.mutate({ name: user?.name, phoneNumber: phoneDraft, timezone: user?.timezone });
     };
 
     const handleSelectChange = (e) => {
@@ -121,18 +144,60 @@ const Profile = () => {
                                 </button>
                             </div>
                             
-                            {/* WhatsApp Notification */}
-                            <div className="flex items-center justify-between">
-                                <div className="flex flex-col pr-4">
-                                    <span className="font-bold text-on-surface text-lg">WhatsApp Concierge</span>
-                                    <span className="text-sm text-on-surface-variant mt-1">Instant chat alerts for renewals</span>
+                            {/* Phone Number Notification */}
+                            <div className="flex items-start justify-between gap-4">
+                                <div className="flex flex-col pr-4 flex-1">
+                                    <span className="font-bold text-on-surface text-lg">Mobile Number</span>
+                                    <span className="text-sm text-on-surface-variant mt-1">Receive SMS alerts for upcoming renewals</span>
+                                    {editingPhone ? (
+                                        <div className="mt-3 flex items-center gap-2">
+                                            <div className="relative flex-1 max-w-xs">
+                                                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">call</span>
+                                                <input
+                                                    type="tel"
+                                                    className="w-full pl-10 pr-4 py-2.5 bg-surface-container-low rounded-xl text-on-surface font-medium focus:ring-2 focus:ring-primary outline-none text-sm border-none"
+                                                    placeholder="+91 98765 43210"
+                                                    value={phoneDraft}
+                                                    onChange={e => setPhoneDraft(e.target.value)}
+                                                    autoFocus
+                                                />
+                                            </div>
+                                            <button
+                                                onClick={handlePhoneSave}
+                                                disabled={profileMut.isLoading}
+                                                className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:bg-primary-dim transition-colors disabled:opacity-60"
+                                            >
+                                                {profileMut.isLoading ? 'Saving…' : 'Save'}
+                                            </button>
+                                            <button
+                                                onClick={() => { setEditingPhone(false); setPhoneDraft(phoneNumber); }}
+                                                className="px-4 py-2.5 bg-surface-container text-on-surface-variant rounded-xl text-sm font-medium hover:bg-surface-container-high transition-colors"
+                                            >
+                                                Cancel
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div className="mt-2 flex items-center gap-3">
+                                            <span className="text-sm font-semibold text-on-surface">
+                                                {phoneNumber || <span className="text-outline italic font-normal">No number added</span>}
+                                            </span>
+                                            {phoneSaved && (
+                                                <span className="flex items-center gap-1 text-xs text-green-600 font-semibold animate-in fade-in">
+                                                    <span className="material-symbols-outlined text-[16px]">check_circle</span> Saved!
+                                                </span>
+                                            )}
+                                        </div>
+                                    )}
                                 </div>
-                                <button 
-                                    onClick={() => handleToggle('notifyViaWhatsApp')}
-                                    className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors ${prefs.notifyViaWhatsApp ? 'bg-primary' : 'bg-surface-container-highest'}`}
-                                >
-                                    <span className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow-sm ${prefs.notifyViaWhatsApp ? 'translate-x-6' : 'translate-x-1'}`} />
-                                </button>
+                                {!editingPhone && (
+                                    <button
+                                        onClick={() => { setEditingPhone(true); setPhoneDraft(phoneNumber); }}
+                                        className="mt-1 flex items-center gap-1.5 px-4 py-2 text-sm font-bold text-primary bg-primary/8 hover:bg-primary/15 rounded-xl transition-colors"
+                                    >
+                                        <span className="material-symbols-outlined text-[18px]">{phoneNumber ? 'edit' : 'add'}</span>
+                                        {phoneNumber ? 'Edit' : 'Add Number'}
+                                    </button>
+                                )}
                             </div>
                             
                             {/* Alert Timing */}
@@ -173,7 +238,9 @@ const Profile = () => {
                             </div>
                             <h3 className="font-bold text-lg">Phone Number</h3>
                             <p className="text-sm text-on-surface-variant">
-                                {user?.phoneNumber ? `Connected: ${user.phoneNumber}` : 'No phone number connected for WhatsApp alerts.'}
+                                {phoneNumber
+                                    ? <><strong className="text-on-surface">{phoneNumber}</strong> — SMS alerts active.</>
+                                    : 'Add a mobile number above to receive SMS renewal alerts.'}
                             </p>
                         </div>
                     </div>

@@ -18,10 +18,10 @@ const TopNavBar = () => {
                 
                 {/* Logo */}
                 <Link to="/" className="flex items-center gap-3 group">
-                    <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-dim flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
+                    {/* <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary to-primary-dim flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
                         <span className="material-symbols-outlined text-white text-[20px]" style={{fontVariationSettings: "'FILL' 1"}}>inventory_2</span>
-                    </div>
-                    <span className="font-black text-xl tracking-tight hidden sm:block text-on-surface">Concierge</span>
+                    </div> */}
+                    <span className="font-black text-xl tracking-tight hidden sm:block text-on-surface">The Concierge</span>
                 </Link>
 
                 {/* Main Navigation (Desktop) */}
