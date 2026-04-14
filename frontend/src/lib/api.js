@@ -74,3 +74,13 @@ export const paySubscription = (id) =>
 
 export const deleteSubscription = (id) =>
     apiFetch(`/subscriptions/${id}`, { method: 'DELETE' });
+
+export const googleLoginApi = async (googleToken) => {
+    const res = await fetch('http://localhost:5000/api/users/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: googleToken }),
+    });
+    if (!res.ok) throw new Error('Google login failed');
+    return res.json();
+};

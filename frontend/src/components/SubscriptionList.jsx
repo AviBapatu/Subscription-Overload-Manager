@@ -7,7 +7,7 @@ import { Plus, Check, Loader2, Trash2 } from 'lucide-react';
 const SubscriptionList = () => {
   const queryClient = useQueryClient();
   const [isAdding, setIsAdding] = useState(false);
-  
+
   const [formData, setFormData] = useState({
     serviceName: '',
     cost: '',
@@ -60,29 +60,29 @@ const SubscriptionList = () => {
       {isAdding && (
         <form onSubmit={handleSubmit} className="glass-card p-6 space-y-4 grid sm:grid-cols-2 lg:grid-cols-5 gap-4 items-end animate-in zoom-in-95 duration-200">
           <div className="col-span-1 lg:col-span-1 border-none sm:border-r border-white/10 lg:pr-4">
-             <label className="block text-sm font-medium text-textSecondary mb-1">Service Name</label>
-             <input className="input-field" type="text" placeholder="e.g. Netflix" required value={formData.serviceName} onChange={(e) => setFormData({...formData, serviceName: e.target.value})} />
+            <label className="block text-sm font-medium text-textSecondary mb-1">Service Name</label>
+            <input className="input-field" type="text" placeholder="e.g. Netflix" required value={formData.serviceName} onChange={(e) => setFormData({ ...formData, serviceName: e.target.value })} />
           </div>
           <div className="col-span-1 lg:col-span-1 lg:px-2">
-             <label className="block text-sm font-medium text-textSecondary mb-1">Cost ($)</label>
-             <input className="input-field" type="number" step="0.01" placeholder="15.99" required value={formData.cost} onChange={(e) => setFormData({...formData, cost: e.target.value})} />
+            <label className="block text-sm font-medium text-textSecondary mb-1">Cost ($)</label>
+            <input className="input-field" type="number" step="0.01" placeholder="15.99" required value={formData.cost} onChange={(e) => setFormData({ ...formData, cost: e.target.value })} />
           </div>
           <div className="col-span-1 lg:col-span-1 lg:px-2">
-             <label className="block text-sm font-medium text-textSecondary mb-1">Cycle</label>
-             <select className="input-field" value={formData.billingCycle} onChange={(e) => setFormData({...formData, billingCycle: e.target.value})}>
-               <option value="WEEKLY">Weekly</option>
-               <option value="MONTHLY">Monthly</option>
-               <option value="YEARLY">Yearly</option>
-             </select>
+            <label className="block text-sm font-medium text-textSecondary mb-1">Cycle</label>
+            <select className="input-field" value={formData.billingCycle} onChange={(e) => setFormData({ ...formData, billingCycle: e.target.value })}>
+              <option value="WEEKLY">Weekly</option>
+              <option value="MONTHLY">Monthly</option>
+              <option value="YEARLY">Yearly</option>
+            </select>
           </div>
           <div className="col-span-1 lg:col-span-1 lg:px-2">
-             <label className="block text-sm font-medium text-textSecondary mb-1">Next Billing Date</label>
-             <input className="input-field" type="date" required value={formData.nextBillingDate} onChange={(e) => setFormData({...formData, nextBillingDate: e.target.value})} />
+            <label className="block text-sm font-medium text-textSecondary mb-1">Next Billing Date</label>
+            <input className="input-field" type="date" required value={formData.nextBillingDate} onChange={(e) => setFormData({ ...formData, nextBillingDate: e.target.value })} />
           </div>
           <div className="col-span-1 lg:col-span-1 sm:col-span-2 lg:pl-4">
-             <button type="submit" disabled={addMut.isLoading} className="btn-primary w-full h-11">
-               {addMut.isLoading ? <Loader2 className="animate-spin" /> : <><Check size={18} /> Save</>}
-             </button>
+            <button type="submit" disabled={addMut.isLoading} className="btn-primary w-full h-11">
+              {addMut.isLoading ? <Loader2 className="animate-spin" /> : <><Check size={18} /> Save</>}
+            </button>
           </div>
         </form>
       )}
@@ -94,7 +94,7 @@ const SubscriptionList = () => {
           {subscriptions?.map((sub) => {
             const daysUntil = dayjs(sub.nextBillingDate).diff(dayjs(), 'day');
             const isRenewingSoon = daysUntil <= 3;
-            
+
             return (
               <div key={sub._id} className={`glass-card p-6 flex flex-col justify-between transition-all hover:scale-[1.02] hover:border-white/20 border-t-4 ${isRenewingSoon ? 'border-t-accent' : 'border-t-primary'}`}>
                 <div>
@@ -110,16 +110,16 @@ const SubscriptionList = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex gap-2 border-t border-white/5 pt-4">
-                  <button 
+                  <button
                     onClick={() => payMut.mutate(sub._id)}
                     disabled={payMut.isLoading}
                     className="flex-1 py-2 bg-surfaceHighlight hover:bg-white/10 text-white rounded-lg font-medium transition-colors text-sm flex justify-center items-center gap-2"
                   >
-                     Mark Paid
+                    Mark Paid
                   </button>
-                  <button 
+                  <button
                     onClick={() => delMut.mutate(sub._id)}
                     className="p-2 bg-surfaceHighlight hover:bg-accent/20 hover:text-accent text-textSecondary rounded-lg transition-colors flex justify-center items-center"
                     title="Cancel Subscription"
@@ -131,9 +131,9 @@ const SubscriptionList = () => {
             );
           })}
           {(!subscriptions || subscriptions.length === 0) && !isAdding && (
-             <div className="col-span-full py-20 text-center text-textSecondary border border-dashed border-white/10 rounded-2xl">
-               No subscriptions found. Click "Add New" to track your first one.
-             </div>
+            <div className="col-span-full py-20 text-center text-textSecondary border border-dashed border-white/10 rounded-2xl">
+              No subscriptions found. Click "Add New" to track your first one.
+            </div>
           )}
         </div>
       )}

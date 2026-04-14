@@ -1,4 +1,6 @@
 const jwt = require('jsonwebtoken');
+const { OAuth2Client } = require('google-auth-library');
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 const User = require('../models/User');
 const crypto = require('crypto');
 const OtpToken = require('../models/OtpToken');
@@ -77,7 +79,7 @@ exports.registerUser = async (req, res) => {
             }
         });
         await user.save();
-        
+
         const token = generateToken(user);
         res.status(201).json({ user, token });
     } catch (err) {
@@ -105,23 +107,74 @@ exports.loginUser = async (req, res) => {
     }
 };
 
+
+exports.googleLogin = async (req, res) => {
+    const { token } = req.body;
+    if (!token) return res.status(400).json({ error: 'Google token is required' });
+    try {
+        const ticket = await googleClient.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID,
+        });
+        const payload = ticket.getPayload();
+        const { email, name, sub: googleId } = payload;
+
+        let user = await User.findOne({ email });
+        if (!user) {
+            user = await User.create({
+                email,
+                name,
+                googleId,
+                authProvider: 'google',
+            });
+        } else if (!user.googleId) {
+            user.googleId = googleId;
+            user.authProvider = 'google';
+            await user.save();
+        }
+
+        const appToken = jwt.sign(
+            { id: user._id },
+            JWT_SECRET,
+            { expiresIn: '7d' }
+        );
+
+        res.json({
+            token: appToken,
+            user: {
+                _id: user._id,
+                name: user.name,
+                email: user.email,
+                phoneNumber: user.phoneNumber,
+                timezone: user.timezone,
+                preferences: user.preferences,
+                authProvider: user.authProvider,
+            }
+        });
+    } catch (err) {
+        console.error('Google login error:', err);
+        res.status(401).json({ error: 'Invalid Google token' });
+    }
+};
+
+
 exports.updateUserPreferences = async (req, res) => {
     try {
         if (req.user.id !== req.params.id) return res.status(403).json({ error: 'Unauthorized' });
-        
+
         const user = await User.findByIdAndUpdate(
             req.params.id,
             { $set: { preferences: req.body } },
             { new: true }
         );
-        
+
         if (!user) return res.status(404).json({ error: 'User not found' });
 
         // Retroactively cascade preference updates (alert dates and notification flags) to all active subscriptions
         const Subscription = require('../models/Subscription');
         const dayjs = require('dayjs');
         const subs = await Subscription.find({ userId: user._id });
-        
+
         for (const sub of subs) {
             const alertDays = user.preferences?.alertDaysBefore || 3;
             sub.notifyViaEmail = user.preferences?.notifyViaEmail;
@@ -188,7 +241,7 @@ exports.verifyOtp = async (req, res) => {
         if (!user) return res.status(400).json({ error: 'Invalid operation' });
 
         const hashedOtpChallenge = crypto.createHash('sha256').update(otp).digest('hex');
-        
+
         const tokenDoc = await OtpToken.findOne({
             userId: user._id,
             otpHash: hashedOtpChallenge
@@ -213,7 +266,7 @@ exports.resetPassword = async (req, res) => {
         if (!user) return res.status(400).json({ error: 'Invalid operation' });
 
         const hashedOtpChallenge = crypto.createHash('sha256').update(otp).digest('hex');
-        
+
         const tokenDoc = await OtpToken.findOne({
             userId: user._id,
             otpHash: hashedOtpChallenge
@@ -233,3 +286,6 @@ exports.resetPassword = async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 };
+
+
+

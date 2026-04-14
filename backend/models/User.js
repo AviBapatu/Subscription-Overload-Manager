@@ -3,7 +3,9 @@ const bcrypt = require('bcryptjs');
 
 const UserSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, index: true },
-  password: { type: String, required: true },
+  password: { type: String, required: false },
+  googleId: { type: String },
+  authProvider: { type: String, default: 'local' },
   phoneNumber: { type: String },
   timezone: { type: String, default: 'UTC' },
   name: { type: String },
@@ -34,7 +36,7 @@ const UserSchema = new mongoose.Schema({
 
 // Hash password before saving
 UserSchema.pre('save', async function() {
-    if (!this.isModified('password')) return;
+    if (!this.isModified('password') || !this.password) return;
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
 });

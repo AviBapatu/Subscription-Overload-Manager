@@ -1,20 +1,26 @@
+
+
 const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/auth');
 const userController = require('../controllers/userController');
 
 // ─────────────────────────────────────────
-// User Routes
+// User Routes — specific routes FIRST, dynamic routes LAST
 // ─────────────────────────────────────────
 
-router.get('/:id', auth, userController.getUserProfile);
-router.post('/', userController.seedUser);
+// ✅ All specific POST routes first
 router.post('/register', userController.registerUser);
 router.post('/login', userController.loginUser);
-router.put('/:id/preferences', auth, userController.updateUserPreferences);
-router.put('/:id', auth, userController.updateUserProfile);
+router.post('/google', userController.googleLogin);        // ← moved to top
 router.post('/forgot-password', userController.forgotPassword);
 router.post('/verify-otp', userController.verifyOtp);
 router.post('/reset-password', userController.resetPassword);
+router.post('/', userController.seedUser);
+
+// ✅ Dynamic :id routes LAST
+router.get('/:id', auth, userController.getUserProfile);
+router.put('/:id/preferences', auth, userController.updateUserPreferences);
+router.put('/:id', auth, userController.updateUserProfile);
 
 module.exports = router;

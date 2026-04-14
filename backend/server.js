@@ -20,6 +20,7 @@ mongoose.connect(process.env.MONGO_URI)
 // to prevent Express matching "login" as an :id param.
 app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/users', require('./routes/users'));
+app.post('/api/users/google', require('./controllers/userController').googleLogin);
 
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date() }));

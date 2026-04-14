@@ -9,10 +9,10 @@ const CATEGORIES = ['Entertainment', 'Software', 'News', 'Gaming', 'Music', 'Fit
 const SubscriptionsGrid = () => {
     const { userId } = useAuth();
     const queryClient = useQueryClient();
-    
+
     const [view, setView] = useState('grid');
     const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, ACTIVE, PAUSED, CANCELLED
-    
+
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingSub, setEditingSub] = useState(null);
@@ -35,7 +35,7 @@ const SubscriptionsGrid = () => {
         mutationFn: (data) => addSubscription(userId, data),
         onSuccess: () => { queryClient.invalidateQueries(['subscriptions']); closeModal(); }
     });
-    
+
     const editMut = useMutation({
         mutationFn: ({ id, data }) => updateSubscription(id, data),
         onSuccess: () => { queryClient.invalidateQueries(['subscriptions']); closeModal(); }
@@ -99,7 +99,7 @@ const SubscriptionsGrid = () => {
             cost: parseFloat(formData.cost),
             nextBillingDate: new Date(formData.nextBillingDate).toISOString()
         };
-        
+
         if (editingSub) {
             editMut.mutate({ id: editingSub._id, data: payload });
         } else {
@@ -134,7 +134,7 @@ const SubscriptionsGrid = () => {
                         )}
                     </p>
                 </div>
-                
+
                 <div className="flex flex-col sm:flex-row gap-4 items-end">
                     {/* View & Filter Tabs */}
                     <div className="flex bg-surface-container-low p-1.5 rounded-full self-start md:self-end">
@@ -151,7 +151,7 @@ const SubscriptionsGrid = () => {
 
             {/* Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                
+
                 {/* Add New CTA */}
                 <button onClick={openAddModal}
                     className="group relative border-2 border-dashed border-outline-variant/30 rounded-2xl p-8 flex flex-col items-center justify-center min-h-[300px] transition-all duration-300 hover:border-primary/50 hover:bg-primary/5 text-center">
@@ -163,7 +163,7 @@ const SubscriptionsGrid = () => {
                 </button>
 
                 {isLoading && (
-                    Array.from({length: 3}).map((_, i) => (
+                    Array.from({ length: 3 }).map((_, i) => (
                         <div key={i} className="bg-surface-container-lowest rounded-2xl min-h-[300px] animate-pulse" />
                     ))
                 )}
@@ -172,16 +172,16 @@ const SubscriptionsGrid = () => {
                     const theme = getCardTheme(sub.category);
                     const daysLeft = dayjs(sub.nextBillingDate).diff(dayjs(), 'day');
                     const progress = Math.max(0, Math.min(100, (daysLeft / 30) * 100)); // Rough estimate
-                    
+
                     return (
                         <div key={sub._id} className={`group relative bg-surface-container-lowest rounded-2xl p-8 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] overflow-hidden ${sub.status !== 'ACTIVE' ? 'opacity-70 grayscale-[50%]' : ''}`}>
                             {sub.status === 'ACTIVE' && (
                                 <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${theme.grad} to-transparent rounded-bl-[100px] pointer-events-none`} />
                             )}
-                            
+
                             <div className="flex justify-between items-start mb-6 relative z-10">
                                 <div className={`w-14 h-14 ${theme.bg} rounded-full flex items-center justify-center shadow-lg ${theme.ring}`}>
-                                    <span className="material-symbols-outlined text-white text-[28px]" style={{fontVariationSettings: "'FILL' 1"}}>{theme.icon}</span>
+                                    <span className="material-symbols-outlined text-white text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>{theme.icon}</span>
                                 </div>
                                 <div className="group/menu relative">
                                     <button className="material-symbols-outlined text-outline-variant hover:text-on-surface hover:bg-surface-container-low w-8 h-8 rounded-full transition-colors flex items-center justify-center">
@@ -189,19 +189,19 @@ const SubscriptionsGrid = () => {
                                     </button>
                                     <div className="absolute right-0 top-full mt-1 w-40 bg-surface-container-lowest rounded-lg shadow-xl border border-outline-variant/10 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all z-20 py-2">
                                         <button onClick={() => openEditModal(sub)} className="w-full text-left px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">edit</span> Edit</button>
-                                        
+
                                         {sub.status === 'ACTIVE' ? (
-                                            <button onClick={() => statusMut.mutate({id: sub._id, status: 'PAUSED'})} className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-container-low flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">pause</span> Pause</button>
+                                            <button onClick={() => statusMut.mutate({ id: sub._id, status: 'PAUSED' })} className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-container-low flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">pause</span> Pause</button>
                                         ) : (
-                                            <button onClick={() => statusMut.mutate({id: sub._id, status: 'ACTIVE'})} className="w-full text-left px-4 py-2 text-sm text-primary hover:bg-surface-container-low flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">play_arrow</span> Resume</button>
+                                            <button onClick={() => statusMut.mutate({ id: sub._id, status: 'ACTIVE' })} className="w-full text-left px-4 py-2 text-sm text-primary hover:bg-surface-container-low flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">play_arrow</span> Resume</button>
                                         )}
-                                        
+
                                         <hr className="my-2 border-outline-variant/10" />
                                         <button onClick={() => deleteMut.mutate(sub._id)} className="w-full text-left px-4 py-2 text-sm text-error hover:bg-error/10 flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">delete</span> Delete</button>
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div className="mb-6">
                                 <h3 className="text-xl font-bold text-on-background tracking-tight">{sub.serviceName}</h3>
                                 <p className="text-on-surface-variant text-sm font-medium flex items-center gap-1.5 mt-1">
@@ -210,7 +210,7 @@ const SubscriptionsGrid = () => {
                                     {sub.status === 'CANCELLED' && <span className="bg-error-container text-on-error-container px-2 py-0.5 rounded text-xs">CANCELLED</span>}
                                 </p>
                             </div>
-                            
+
                             <div className="flex items-end justify-between mb-6">
                                 <div>
                                     <p className="text-[10px] font-bold text-outline-variant uppercase tracking-widest mb-1">{sub.billingCycle}</p>
@@ -221,13 +221,13 @@ const SubscriptionsGrid = () => {
                                     <p className="text-on-surface font-semibold text-sm">{dayjs(sub.nextBillingDate).format('MMM DD, YYYY')}</p>
                                 </div>
                             </div>
-                            
+
                             {sub.status === 'ACTIVE' && (
                                 <div className="space-y-3">
                                     <div className="w-full bg-surface-container-low h-1.5 rounded-full overflow-hidden">
-                                        <div className={`${theme.bg} h-full rounded-full transition-all`} style={{ width: `${Math.max(5, progress)}%`}} />
+                                        <div className={`${theme.bg} h-full rounded-full transition-all`} style={{ width: `${Math.max(5, progress)}%` }} />
                                     </div>
-                                    <button 
+                                    <button
                                         onClick={() => payMut.mutate(sub._id)}
                                         disabled={payMut.isPending}
                                         className="w-full py-2 bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1">
@@ -248,22 +248,22 @@ const SubscriptionsGrid = () => {
                             <h2 className="text-2xl font-black tracking-tighter text-on-surface">{editingSub ? 'Edit Subscription' : 'Add Subscription'}</h2>
                             <button onClick={closeModal} className="material-symbols-outlined text-on-surface-variant hover:text-on-surface hover:bg-surface-container-low p-2 rounded-full">close</button>
                         </div>
-                        
+
                         <form onSubmit={handleFormSubmit} className="space-y-4">
                             <div className="space-y-1">
                                 <label className="text-xs font-bold uppercase tracking-wide text-on-surface-variant ml-1">Service Name</label>
-                                <input required type="text" value={formData.serviceName} onChange={e => setFormData({...formData, serviceName: e.target.value})} className="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none text-on-surface" placeholder="e.g. Netflix" />
+                                <input required type="text" value={formData.serviceName} onChange={e => setFormData({ ...formData, serviceName: e.target.value })} className="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none text-on-surface" placeholder="e.g. Netflix" />
                             </div>
-                            
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold uppercase tracking-wide text-on-surface-variant ml-1">Cost ($)</label>
-                                    <input required type="number" step="0.01" min="0" value={formData.cost} onChange={e => setFormData({...formData, cost: e.target.value})} className="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none text-on-surface" placeholder="0.00" />
+                                    <input required type="number" step="0.01" min="0" value={formData.cost} onChange={e => setFormData({ ...formData, cost: e.target.value })} className="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none text-on-surface" placeholder="0.00" />
                                 </div>
-                                
+
                                 <div className="space-y-1">
                                     <label className="text-xs font-bold uppercase tracking-wide text-on-surface-variant ml-1">Cycle</label>
-                                    <select value={formData.billingCycle} onChange={e => setFormData({...formData, billingCycle: e.target.value})} className="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none text-on-surface">
+                                    <select value={formData.billingCycle} onChange={e => setFormData({ ...formData, billingCycle: e.target.value })} className="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none text-on-surface">
                                         <option value="MONTHLY">Monthly</option>
                                         <option value="YEARLY">Yearly</option>
                                         <option value="WEEKLY">Weekly</option>
@@ -273,14 +273,14 @@ const SubscriptionsGrid = () => {
 
                             <div className="space-y-1">
                                 <label className="text-xs font-bold uppercase tracking-wide text-on-surface-variant ml-1">Category</label>
-                                <select value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})} className="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none text-on-surface">
+                                <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none text-on-surface">
                                     {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                                 </select>
                             </div>
 
                             <div className="space-y-1 pb-4">
                                 <label className="text-xs font-bold uppercase tracking-wide text-on-surface-variant ml-1">Next Billing Date</label>
-                                <input required type="date" value={formData.nextBillingDate} onChange={e => setFormData({...formData, nextBillingDate: e.target.value})} className="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none text-on-surface color-scheme-light" />
+                                <input required type="date" value={formData.nextBillingDate} onChange={e => setFormData({ ...formData, nextBillingDate: e.target.value })} className="w-full bg-surface-container-low border-none rounded-xl px-4 py-3 focus:ring-2 focus:ring-primary outline-none text-on-surface color-scheme-light" />
                             </div>
 
                             <button type="submit" disabled={addMut.isPending || editMut.isPending} className="w-full bg-primary text-white font-bold py-4 rounded-xl shadow-lg shadow-primary/20 hover:bg-primary-dim transition-colors flex items-center justify-center gap-2">
@@ -293,5 +293,6 @@ const SubscriptionsGrid = () => {
         </div>
     );
 };
+
 
 export default SubscriptionsGrid;

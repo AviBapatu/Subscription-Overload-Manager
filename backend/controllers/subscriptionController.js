@@ -8,15 +8,15 @@ const dayjs = require('dayjs');
 const calculateNextBilling = (currentDate, cycle) => {
     const next = dayjs(currentDate);
     if (cycle === 'MONTHLY') return next.add(1, 'month').toDate();
-    if (cycle === 'YEARLY')  return next.add(1, 'year').toDate();
-    if (cycle === 'WEEKLY')  return next.add(1, 'week').toDate();
+    if (cycle === 'YEARLY') return next.add(1, 'year').toDate();
+    if (cycle === 'WEEKLY') return next.add(1, 'week').toDate();
     return next.toDate();
 };
 
 const toMonthly = (sub) => {
     if (sub.billingCycle === 'MONTHLY') return sub.cost;
-    if (sub.billingCycle === 'YEARLY')  return sub.cost / 12;
-    if (sub.billingCycle === 'WEEKLY')  return sub.cost * 4.33;
+    if (sub.billingCycle === 'YEARLY') return sub.cost / 12;
+    if (sub.billingCycle === 'WEEKLY') return sub.cost * 4.33;
     return 0;
 };
 
@@ -189,10 +189,10 @@ exports.updateSubscription = async (req, res) => {
         const user = await User.findById(sub.userId);
         const alertDays = user?.preferences?.alertDaysBefore || 3;
 
-        if (serviceName)    sub.serviceName = serviceName;
+        if (serviceName) sub.serviceName = serviceName;
         if (cost !== undefined) sub.cost = parseFloat(cost);
-        if (billingCycle)   sub.billingCycle = billingCycle;
-        if (category)       sub.category = category;
+        if (billingCycle) sub.billingCycle = billingCycle;
+        if (category) sub.category = category;
         if (nextBillingDate) {
             sub.nextBillingDate = nextBillingDate;
             sub.alertDate = dayjs(nextBillingDate).subtract(alertDays, 'day').startOf('day').toDate();
