@@ -157,16 +157,7 @@ exports.googleLogin = async (req, res) => {
 
         res.json({
             token: appToken,
-            user: {
-                _id: user._id,
-                name: user.name,
-                email: user.email,
-                phoneNumber: user.phoneNumber,
-                timezone: user.timezone,
-                preferences: user.preferences,
-                authProvider: user.authProvider,
-                profilePicture: user.profilePicture,
-            }
+            user: user.toJSON()
         });
 
         // Trigger background sync if they have authorized it

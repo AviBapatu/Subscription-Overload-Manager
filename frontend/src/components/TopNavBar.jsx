@@ -9,7 +9,8 @@ const TopNavBar = () => {
     // Minimal tabs
     const navItems = [
         { name: 'Dashboard', path: '/' },
-        { name: 'Subscriptions', path: '/subscriptions' }
+        { name: 'Subscriptions', path: '/subscriptions' },
+        { name: 'Profile', path: '/profile' }
     ];
 
     return (

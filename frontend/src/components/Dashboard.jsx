@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { fetchStats, fetchUpcoming, fetchSpendingHistory, fetchCategoryBreakdown, setupAutoSync, syncFromGmail, fetchInsights, fetchUpcomingTimeline, paySubscription } from '../lib/api';
+import { fetchStats, fetchUpcoming, fetchSpendingHistory, fetchCategoryBreakdown, setupAutoSync, syncFromGmail, fetchInsights, fetchUpcomingTimeline, paySubscription, fetchUser } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import { useGoogleLogin } from '@react-oauth/google';
 
@@ -90,7 +90,7 @@ const TimelineItem = ({ sub, index, isLast }) => {
 
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 const Dashboard = () => {
-    const { userId } = useAuth();
+    const { userId, user, setUser } = useAuth();
     const queryClient = useQueryClient();
     const [isSyncing, setIsSyncing] = useState(false);
     const timelineRef = useRef(null);
@@ -109,6 +109,10 @@ const Dashboard = () => {
                 console.log('Auto Sync Setup Response:', res);
                 const count = Array.isArray(res.saved) ? res.saved.length : 0;
                 alert(`Background Sync enabled! Found ${count} new subscriptions.`);
+                const currentToken = localStorage.getItem('som_token');
+                if (user && currentToken) {
+                    setUser({ user: { ...user, hasAutoScanEnabled: true }, token: currentToken });
+                }
                 queryClient.invalidateQueries(['subscriptions']);
                 queryClient.invalidateQueries(['stats']);
                 queryClient.invalidateQueries(['insights']);
@@ -142,6 +146,14 @@ const Dashboard = () => {
             alert('Could not update payment status.');
         }
     });
+
+    const { data: profile } = useQuery({
+        queryKey: ['userProfile', userId],
+        queryFn: () => fetchUser(userId),
+        enabled: !!userId
+    });
+
+    const isAutoScanEnabled = profile?.hasAutoScanEnabled || user?.hasAutoScanEnabled;
 
     const { data: stats, isLoading: statsLoading } = useQuery({
         queryKey: ['stats', userId],
@@ -206,7 +218,7 @@ const Dashboard = () => {
                         <span className="opacity-70">Last scanned {dayjs(stats.lastGmailSync).fromNow()}.</span>
                     )}
                 </div>
-                <a href="/profile" className="shrink-0 text-xs font-bold text-primary uppercase tracking-widest hover:underline whitespace-nowrap">
+                <a href="/profile" className="shrink-0 text-xs font-bold text-primary uppercase tracking-widest hover:underline whitespace-nowrap self-center">
                     Manage Access
                 </a>
             </div>
@@ -232,11 +244,20 @@ const Dashboard = () => {
                             View All Subs
                         </a>
                         <button
-                            onClick={() => gmailLogin()}
-                            disabled={isSyncing}
-                            className="bg-surface-container-highest px-8 py-4 rounded-full font-bold hover:bg-surface-container-high transition-all text-on-surface flex items-center gap-2">
-                            <span className="material-symbols-outlined">{isSyncing ? 'sync' : 'auto_awesome'}</span>
-                            {isSyncing ? 'Scanning Gmail...' : 'Enable Auto-Scan'}
+                            onClick={() => {
+                                if (isAutoScanEnabled) return;
+                                gmailLogin();
+                            }}
+                            disabled={isSyncing || isAutoScanEnabled}
+                            className={`px-8 py-4 rounded-full font-bold transition-all flex items-center gap-2 ${
+                                isAutoScanEnabled 
+                                    ? 'bg-green-500/10 text-green-600 border border-green-500/20 cursor-default shadow-sm'
+                                    : 'bg-surface-container-highest hover:bg-surface-container-high text-on-surface'
+                            }`}>
+                            <span className="material-symbols-outlined">
+                                {isSyncing ? 'sync' : isAutoScanEnabled ? 'check_circle' : 'auto_awesome'}
+                            </span>
+                            {isSyncing ? 'Scanning Gmail...' : isAutoScanEnabled ? 'Auto-Scan Active' : 'Enable Auto-Scan'}
                         </button>
                         <a href="/subscriptions"
                             className="bg-primary text-on-primary px-8 py-4 rounded-full font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all">
@@ -323,29 +344,7 @@ const Dashboard = () => {
                 </div>
             )}
 
-            {/* ── Overview Cards ─────────────────────────────────────────────── */}
-            <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-10">
-                <StatCard icon="payments" label="Monthly Spend" color="primary"
-                    value={insights ? `₹${insights.totalMonthly.toLocaleString('en-IN')}` : '₹0'}
-                    sub={<span className="text-on-surface-variant">total monthly obligation</span>}
-                    loading={insightsLoading} />
-                <StatCard icon="warning" label="Overdue" color="error"
-                    value={insights?.overdueCount ?? '0'}
-                    sub={<span className="text-on-surface-variant">past due payments</span>}
-                    loading={insightsLoading} />
-                <StatCard icon="schedule" label="Due Soon" color="tertiary"
-                    value={insights?.dueSoonCount ?? '0'}
-                    sub={<span className="text-on-surface-variant">billing in next 3 days</span>}
-                    loading={insightsLoading} />
-                <StatCard icon="event_repeat" label="Upcoming" color="primary"
-                    value={insights?.upcomingCount ?? '0'}
-                    sub={<span className="text-on-surface-variant">billing thereafter</span>}
-                    loading={insightsLoading} />
-                <StatCard icon="verified_user" label="Active Services" color="secondary"
-                    value={insights?.activeCount ?? '0'}
-                    sub={<span className="text-on-surface-variant">currently managed</span>}
-                    loading={insightsLoading} />
-            </section>
+
 
             {/* ── Analytics Section ────────────────────────────────────────── */}
             <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -437,8 +436,8 @@ const Dashboard = () => {
                     </h3>
                     {overdue.length === 0 ? (
                         <div className="text-center py-6">
-                            <span className="material-symbols-outlined text-green-500 text-4xl mb-2">task_alt</span>
-                            <p className="text-on-surface-variant font-bold">No overdue payments ✅</p>
+                            {/* <span className="material-symbols-outlined text-green-500 text-4xl mb-2">task_alt</span> */}
+                            <p className="text-on-surface-variant font-bold">No overdue payments</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -559,44 +558,7 @@ const Dashboard = () => {
                 </div>
             </section>
 
-            {/* ── Smart Recommendation Banner ──────────────────────────────────── */}
-            {stats && stats.activeCount > 0 && (
-                <section className="mt-8 relative rounded-2xl overflow-hidden p-10 md:p-12 bg-on-background text-white shadow-2xl">
-                    <div className="absolute inset-0 opacity-10"
-                        style={{ backgroundImage: "radial-gradient(circle at 20% 50%, #6c9fff 0%, transparent 60%), radial-gradient(circle at 80% 20%, #f39cfb 0%, transparent 60%)" }} />
-                    <div className="relative z-10 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                        <div>
-                            <div className="inline-flex items-center gap-2 bg-white/10 rounded-full px-4 py-2 text-xs font-bold mb-4 uppercase tracking-widest">
-                                <span className="material-symbols-outlined text-sm">auto_awesome</span>
-                                AI Insight
-                            </div>
-                            <h2 className="text-2xl md:text-3xl font-black tracking-tighter mb-3">
-                                Optimize your ${stats.monthlySpend.toFixed(0)}/mo spend
-                            </h2>
-                            <p className="text-white/70 text-base leading-relaxed mb-6">
-                                You have {stats.activeCount} active subscriptions. Our algorithms can help identify overlapping services and unused plans to reduce costs.
-                            </p>
-                            <a href="/subscriptions"
-                                className="inline-block bg-white text-on-background px-8 py-3.5 rounded-full font-bold hover:scale-105 transition-all">
-                                Review &amp; Optimize
-                            </a>
-                        </div>
-                        <div className="flex justify-center">
-                            <div className="glass-card p-6 rounded-2xl bg-white/10 border border-white/10 flex items-center gap-6">
-                                <div className="text-center">
-                                    <p className="text-3xl font-black">{stats.activeCount}</p>
-                                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mt-1">Active</p>
-                                </div>
-                                <span className="material-symbols-outlined text-3xl text-white/30">arrow_forward</span>
-                                <div className="text-center">
-                                    <p className="text-3xl font-black text-green-400">${stats.monthlySpend.toFixed(0)}</p>
-                                    <p className="text-xs text-white/60 font-bold uppercase tracking-widest mt-1">Per Month</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            )}
+
         </div>
     );
 };

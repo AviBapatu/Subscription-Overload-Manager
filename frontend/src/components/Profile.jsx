@@ -110,6 +110,7 @@ const Profile = () => {
     const [prefs, setPrefs] = useState(defaultPrefs);
     const [saving, setSaving] = useState(false);
     const [savedKey, setSavedKey] = useState(null); // tracks which field just saved
+    const [activeSection, setActiveSection] = useState('channels');
 
     /* ── Phone ── */
     const [phoneNumber, setPhoneNumber] = useState('');
@@ -216,6 +217,25 @@ const Profile = () => {
         { id: 'advanced',    icon: 'settings_suggest',      label: 'Advanced' },
     ];
 
+    useEffect(() => {
+        const handleScroll = () => {
+            const sections = navSections.map(s => document.getElementById(s.id)).filter(Boolean);
+            let current = 'channels';
+            for (const section of sections) {
+                const rect = section.getBoundingClientRect();
+                // 150px offset to trigger slightly before it hits the very top
+                if (rect.top <= 200) {
+                    current = section.id;
+                }
+            }
+            setActiveSection(current);
+        };
+
+        window.addEventListener('scroll', handleScroll, { passive: true });
+        handleScroll();
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, [navSections]);
+
     if (isLoading) return (
         <div className="flex items-center justify-center min-h-[40vh]">
             <div className="w-8 h-8 rounded-full border-4 border-primary/20 border-t-primary animate-spin" />
@@ -254,13 +274,22 @@ const Profile = () => {
 
                     {/* Side Nav */}
                     <div className="hidden lg:flex lg:col-span-3 flex-col gap-1.5 sticky top-28 self-start">
-                        {navSections.map(s => (
-                            <a key={s.id} href={`#${s.id}`}
-                                className="flex items-center gap-3 px-4 py-2.5 text-on-surface-variant hover:bg-surface-container-low hover:text-primary transition-all rounded-xl font-medium text-sm group">
-                                <span className="material-symbols-outlined text-[20px] group-hover:text-primary transition-colors">{s.icon}</span>
-                                <span>{s.label}</span>
-                            </a>
-                        ))}
+                        {navSections.map(s => {
+                            const isActive = activeSection === s.id;
+                            return (
+                                <a key={s.id} href={`#${s.id}`}
+                                    className={`flex items-center gap-3 px-4 py-2.5 transition-all rounded-xl font-medium text-sm group ${
+                                        isActive 
+                                            ? 'bg-primary/10 text-primary shadow-sm' 
+                                            : 'text-on-surface-variant hover:bg-surface-container-low hover:text-primary'
+                                    }`}>
+                                    <span className={`material-symbols-outlined text-[20px] transition-colors ${
+                                        isActive ? 'text-primary' : 'group-hover:text-primary'
+                                    }`}>{s.icon}</span>
+                                    <span>{s.label}</span>
+                                </a>
+                            );
+                        })}
                         <div className="mt-6 p-5 bg-gradient-to-br from-secondary to-primary-dim rounded-2xl text-white flex flex-col gap-3 shadow-lg shadow-blue-500/10">
                             <p className="font-bold leading-tight">Upgrade to Premium</p>
                             <p className="text-xs text-white/80">Advanced analytics & family sharing.</p>

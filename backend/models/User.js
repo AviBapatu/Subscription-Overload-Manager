@@ -35,7 +35,17 @@ const UserSchema = new mongoose.Schema({
     perSubOverrides:       { type: Boolean, default: false  },
     snoozeUntil:           { type: String,  default: null   }
   }
-}, { timestamps: true });
+}, { 
+  timestamps: true,
+  toJSON: {
+    transform: function(doc, ret) {
+      ret.hasAutoScanEnabled = !!ret.googleRefreshToken;
+      delete ret.password;
+      delete ret.googleRefreshToken;
+      return ret;
+    }
+  }
+});
 
 // Hash password before saving
 UserSchema.pre('save', async function() {
