@@ -7,7 +7,7 @@ import { CATEGORIES } from './constants';
  * Props:
  *   isOpen        — bool
  *   editingSub    — subscription object if editing, null if adding
- *   formData      — { serviceName, cost, billingCycle, category, nextBillingDate }
+ *   formData      — { serviceName, cost, billingCycle, category, nextBillingDate, isTrial, trialEndsAt }
  *   onFormChange  — (updates) => void  (merges patch into formData)
  *   onSubmit      — (e) => void
  *   onClose       — () => void
@@ -26,7 +26,7 @@ const SubscriptionModal = ({ isOpen, editingSub, formData, onFormChange, onSubmi
 
     return (
         <div className="fixed inset-0 bg-on-background/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-surface-container-lowest rounded-3xl p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="bg-surface-container-lowest rounded-3xl p-8 w-full max-w-md shadow-2xl animate-in zoom-in-95 duration-200 max-h-[90vh] overflow-y-auto">
 
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6">
@@ -67,9 +67,51 @@ const SubscriptionModal = ({ isOpen, editingSub, formData, onFormChange, onSubmi
                         </select>
                     </div>
 
-                    <div className="space-y-1 pb-4">
+                    <div className="space-y-1">
                         <label className={labelCls}>Next Billing Date</label>
                         <input required type="date" {...field('nextBillingDate')} className={`${inputCls} color-scheme-light`} />
+                    </div>
+
+                    {/* ── Free Trial Toggle ────────────────────────────────── */}
+                    <div className={`rounded-2xl border transition-colors p-4 ${formData.isTrial ? 'border-amber-400/40 bg-amber-50/60' : 'border-outline-variant/15 bg-surface-container-low/40'}`}>
+                        <button
+                            type="button"
+                            onClick={() => onFormChange({ isTrial: !formData.isTrial, trialEndsAt: '' })}
+                            className="w-full flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-3">
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 transition-colors ${formData.isTrial ? 'bg-amber-400/20' : 'bg-surface-container-high'}`}>
+                                    <span className={`material-symbols-outlined text-[20px] ${formData.isTrial ? 'text-amber-600' : 'text-on-surface-variant'}`}>
+                                        hourglass_empty
+                                    </span>
+                                </div>
+                                <div className="text-left">
+                                    <p className={`font-bold text-sm ${formData.isTrial ? 'text-amber-700' : 'text-on-surface'}`}>Free Trial</p>
+                                    <p className="text-xs text-on-surface-variant mt-0.5">Get alerted before your trial converts to paid</p>
+                                </div>
+                            </div>
+                            {/* pill toggle */}
+                            <div className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${formData.isTrial ? 'bg-amber-400' : 'bg-surface-container-highest'}`}>
+                                <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${formData.isTrial ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </div>
+                        </button>
+
+                        {/* Trial end date — visible only when toggled on */}
+                        {formData.isTrial && (
+                            <div className="mt-4 space-y-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                                <label className="text-xs font-bold uppercase tracking-wide text-amber-700 ml-1">Trial Ends On</label>
+                                <input
+                                    required
+                                    type="date"
+                                    value={formData.trialEndsAt}
+                                    onChange={e => onFormChange({ trialEndsAt: e.target.value })}
+                                    className="w-full bg-white border border-amber-300/50 rounded-xl px-4 py-3 focus:ring-2 focus:ring-amber-400 outline-none text-on-surface color-scheme-light"
+                                />
+                                <p className="text-xs text-amber-600 ml-1 mt-1 flex items-center gap-1">
+                                    <span className="material-symbols-outlined text-[14px]">info</span>
+                                    We'll email you 3 days before this date
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     <button type="submit" disabled={isPending}

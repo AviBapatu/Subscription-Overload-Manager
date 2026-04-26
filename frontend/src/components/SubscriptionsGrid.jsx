@@ -31,6 +31,8 @@ const SubscriptionsGrid = () => {
         billingCycle: 'MONTHLY',
         category: 'Other',
         nextBillingDate: dayjs().add(1, 'month').format('YYYY-MM-DD'),
+        isTrial: false,
+        trialEndsAt: '',
     });
 
     // ── Data query ────────────────────────────────────────────────────────────
@@ -100,6 +102,7 @@ const SubscriptionsGrid = () => {
         setFormData({
             serviceName: '', cost: '', billingCycle: 'MONTHLY', category: 'Other',
             nextBillingDate: dayjs().add(1, 'month').format('YYYY-MM-DD'),
+            isTrial: false, trialEndsAt: '',
         });
         setIsModalOpen(true);
     };
@@ -112,6 +115,8 @@ const SubscriptionsGrid = () => {
             billingCycle: sub.billingCycle || 'MONTHLY',
             category: sub.category || 'Other',
             nextBillingDate: dayjs(sub.nextBillingDate).format('YYYY-MM-DD'),
+            isTrial: !!sub.trialEndsAt,
+            trialEndsAt: sub.trialEndsAt ? dayjs(sub.trialEndsAt).format('YYYY-MM-DD') : '',
         });
         setIsModalOpen(true);
     };
@@ -124,6 +129,10 @@ const SubscriptionsGrid = () => {
             ...formData,
             cost: parseFloat(formData.cost),
             nextBillingDate: new Date(formData.nextBillingDate).toISOString(),
+            // Only send trialEndsAt when the toggle is on
+            trialEndsAt: formData.isTrial && formData.trialEndsAt
+                ? new Date(formData.trialEndsAt).toISOString()
+                : null,
         };
         if (editingSub) editMut.mutate({ id: editingSub._id, data: payload });
         else addMut.mutate(payload);

@@ -166,7 +166,7 @@ exports.getCategoryBreakdown = async (req, res) => {
 
 exports.createSubscription = async (req, res) => {
     try {
-        const { userId, serviceName, cost, billingCycle, nextBillingDate, category } = req.body;
+        const { userId, serviceName, cost, billingCycle, nextBillingDate, category, trialEndsAt } = req.body;
 
         const user = await User.findById(userId);
         if (!user) return res.status(404).json({ error: 'User not found' });
@@ -186,7 +186,10 @@ exports.createSubscription = async (req, res) => {
             userPhone: user.phoneNumber,
             userTimezone: user.timezone,
             notifyViaEmail: user.preferences?.notifyViaEmail,
-            notifyViaWhatsApp: user.preferences?.notifyViaWhatsApp
+            notifyViaWhatsApp: user.preferences?.notifyViaWhatsApp,
+            // Free trial fields
+            trialEndsAt: trialEndsAt || null,
+            trialAlertSent: false,
         });
 
         await newSub.save();
@@ -206,7 +209,7 @@ exports.createSubscription = async (req, res) => {
 
 exports.updateSubscription = async (req, res) => {
     try {
-        const { serviceName, cost, billingCycle, nextBillingDate, category } = req.body;
+        const { serviceName, cost, billingCycle, nextBillingDate, category, trialEndsAt } = req.body;
 
         const sub = await Subscription.findById(req.params.id);
         if (!sub) return res.status(404).json({ error: 'Subscription not found' });
@@ -224,6 +227,11 @@ exports.updateSubscription = async (req, res) => {
         if (nextBillingDate) {
             sub.nextBillingDate = nextBillingDate;
             sub.alertDate = dayjs(nextBillingDate).subtract(alertDays, 'day').startOf('day').toDate();
+        }
+        // Update trial date — reset trialAlertSent so the alert can fire again
+        if (trialEndsAt !== undefined) {
+            sub.trialEndsAt = trialEndsAt || null;
+            sub.trialAlertSent = false;
         }
 
         // If cost increased, store previousCost for audit

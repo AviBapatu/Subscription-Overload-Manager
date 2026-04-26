@@ -33,6 +33,10 @@ const SubscriptionCard = ({
     const isSuggested = sub.status === 'SUGGESTED';
     const isNewlyApproved = lastApprovedId === sub._id;
 
+    // Free trial
+    const isTrial = !!sub.trialEndsAt;
+    const trialDaysLeft = isTrial ? dayjs(sub.trialEndsAt).diff(dayjs(), 'day') : null;
+
     return (
         <div className={`group relative bg-surface-container-lowest rounded-2xl p-8 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] overflow-hidden ${(!isSuggested && sub.status !== 'ACTIVE') ? 'opacity-70 grayscale-[50%]' : ''}`}>
 
@@ -74,6 +78,20 @@ const SubscriptionCard = ({
                             Detected
                         </div>
                     )}
+                </div>
+            )}
+
+            {/* Free Trial badge (only on non-suggested active subs) */}
+            {!isSuggested && isTrial && (
+                <div className="absolute top-4 right-4 z-10">
+                    <div className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1 border ${
+                        trialDaysLeft <= 3
+                            ? 'bg-red-500/10 text-red-600 border-red-400/30'
+                            : 'bg-amber-400/10 text-amber-600 border-amber-400/30'
+                    }`}>
+                        <span className="material-symbols-outlined text-sm">hourglass_empty</span>
+                        {trialDaysLeft <= 0 ? 'Trial ended' : `${trialDaysLeft}d trial`}
+                    </div>
                 </div>
             )}
 
@@ -124,7 +142,7 @@ const SubscriptionCard = ({
             </div>
 
             {/* Cost + next bill date */}
-            <div className="flex items-end justify-between mb-8">
+            <div className="flex items-end justify-between mb-4">
                 <div>
                     <p className="text-[10px] font-bold text-outline-variant uppercase tracking-widest mb-1">{sub.billingCycle || 'MONTHLY'}</p>
                     <p className="text-3xl font-black text-on-background tracking-tighter">${sub.cost.toFixed(2)}</p>
@@ -134,6 +152,18 @@ const SubscriptionCard = ({
                     <p className="text-on-surface font-semibold text-sm">{dayjs(sub.nextBillingDate).format('MMM DD, YYYY')}</p>
                 </div>
             </div>
+
+            {/* Trial countdown strip */}
+            {isTrial && !isSuggested && (
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-xl mb-4 text-xs font-bold ${
+                    trialDaysLeft <= 3 ? 'bg-red-500/10 text-red-600' : 'bg-amber-400/10 text-amber-700'
+                }`}>
+                    <span className="material-symbols-outlined text-[16px]">hourglass_empty</span>
+                    {trialDaysLeft <= 0
+                        ? 'Trial has ended — charges start soon'
+                        : `Free trial ends ${dayjs(sub.trialEndsAt).format('MMM D')} (${trialDaysLeft} day${trialDaysLeft !== 1 ? 's' : ''} left)`}
+                </div>
+            )}
 
             {/* Bottom actions */}
             {isSuggested ? (
