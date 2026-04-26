@@ -11,7 +11,7 @@ const {
 } = require('../templates/emailTemplates');
 
 const client = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
-const SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'concierge@example.com';
+const SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'noreply@subscriptionconcierge.com';
 
 /* ─── Core Brevo dispatch ─────────────────────────────────────────────────── */
 const sendBrevoEmail = async (to, subject, htmlContent) => {
@@ -21,7 +21,7 @@ const sendBrevoEmail = async (to, subject, htmlContent) => {
             htmlContent,
             sender: { name: 'Subscription Concierge', email: SENDER_EMAIL },
             to: [{ email: to }],
-            replyTo: { email: 'no-reply@example.com', name: 'No Reply' },
+            replyTo: { email: SENDER_EMAIL, name: 'Subscription Concierge' },
         });
         console.log(`[BREVO] ✓ Sent "${subject}" to ${to}. ID: ${data.messageId}`);
         return data;
