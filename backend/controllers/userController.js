@@ -102,6 +102,12 @@ exports.loginUser = async (req, res) => {
 
         const token = generateToken(user);
         res.json({ user, token });
+
+        // Trigger background sync if they have authorized it
+        if (user.googleRefreshToken) {
+            const { runBackgroundSync } = require('../services/gmailSyncService');
+            runBackgroundSync(user._id).catch(err => console.error("Background sync on login failed:", err));
+        }
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -162,6 +168,12 @@ exports.googleLogin = async (req, res) => {
                 profilePicture: user.profilePicture,
             }
         });
+
+        // Trigger background sync if they have authorized it
+        if (user.googleRefreshToken) {
+            const { runBackgroundSync } = require('../services/gmailSyncService');
+            runBackgroundSync(user._id).catch(err => console.error("Background sync on google login failed:", err));
+        }
     } catch (err) {
         console.error('Google login error:', err);
         res.status(401).json({ error: 'Invalid Google token' });
