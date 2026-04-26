@@ -108,6 +108,15 @@ const sendBudgetAlert = (to, userName, spentAmount, budgetAmount, percentage) =>
 const sendNewSubscriptionAlert = (to, userName, sub) =>
     sendBrevoEmail(to, `✨ New subscription added: ${sub.serviceName}`, getNewSubscriptionHTML(userName, sub));
 
+/**
+ * Overdue payment alert.
+ * @param {Object} sub - subscription document
+ */
+const sendOverdueEmail = (sub) => {
+    const { getOverdueAlertHTML } = require('../templates/emailTemplates');
+    return sendBrevoEmail(sub.userEmail, `⚠️ Overdue Alert: ${sub.serviceName}`, getOverdueAlertHTML(sub));
+};
+
 /* ─── Exports ─────────────────────────────────────────────────────────────── */
 module.exports = {
     sendBrevoEmail,
@@ -119,4 +128,5 @@ module.exports = {
     sendWeeklySummary,
     sendBudgetAlert,
     sendNewSubscriptionAlert,
+    sendOverdueEmail,
 };

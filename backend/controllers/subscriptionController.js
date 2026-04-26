@@ -1,6 +1,8 @@
 const Subscription = require('../models/Subscription');
 const User = require('../models/User');
 const dayjs = require('dayjs');
+const isBetween = require('dayjs/plugin/isBetween');
+dayjs.extend(isBetween);
 
 // ─────────────────────────────────────────
 // Helpers
@@ -11,6 +13,12 @@ const calculateNextBilling = (currentDate, cycle) => {
     if (cycle === 'YEARLY') return next.add(1, 'year').toDate();
     if (cycle === 'WEEKLY') return next.add(1, 'week').toDate();
     return next.toDate();
+};
+
+const safeDate = (val) => {
+    if (!val) return null;
+    const d = new Date(val);
+    return isNaN(d) ? null : d;
 };
 
 const toMonthly = (sub) => {
@@ -56,12 +64,15 @@ exports.getSubscriptionStats = async (req, res) => {
             return acc;
         }, {});
 
+        const user = await User.findById(req.params.userId);
+        
         res.json({
             monthlySpend: parseFloat(monthlySpend.toFixed(2)),
             activeCount: active.length,
             pausedCount: statusCounts['PAUSED'] || 0,
             cancelledCount: statusCounts['CANCELLED'] || 0,
             upcoming7DayCost: parseFloat(upcoming7Days.toFixed(2)),
+            lastGmailSync: user?.lastGmailSync || null,
             mostExpensive: mostExpensive ? {
                 name: mostExpensive.serviceName,
                 cost: mostExpensive.cost,
@@ -231,19 +242,41 @@ exports.recordPayment = async (req, res) => {
         const user = await User.findById(sub.userId);
         const alertDays = user ? (user.preferences?.alertDaysBefore || 3) : 3;
 
-        const newBillingDate = calculateNextBilling(sub.nextBillingDate, sub.billingCycle);
-        sub.nextBillingDate = newBillingDate;
-        sub.alertDate = dayjs(newBillingDate).subtract(alertDays, 'day').startOf('day').toDate();
+        // Transitions: Paid -> Next Cycle
+        // If it was overdue (date < now), we move it forward until it hits the next upcoming date.
+        // This ensures "NEVER keep a PAID item in OVERDUE".
+        const now = dayjs();
+        let nextDate = dayjs(sub.nextBillingDate);
+
+        // Standard: Add 1 cycle
+        if (sub.billingCycle === 'MONTHLY') nextDate = nextDate.add(1, 'month');
+        else if (sub.billingCycle === 'YEARLY') nextDate = nextDate.add(1, 'year');
+        else if (sub.billingCycle === 'WEEKLY') nextDate = nextDate.add(1, 'week');
+        else nextDate = nextDate.add(1, 'month');
+
+        // Enforcement: If STILL overdue, jump to the nearest future occurrence
+        while (nextDate.isBefore(now, 'day')) {
+            if (sub.billingCycle === 'MONTHLY') nextDate = nextDate.add(1, 'month');
+            else if (sub.billingCycle === 'YEARLY') nextDate = nextDate.add(1, 'year');
+            else if (sub.billingCycle === 'WEEKLY') nextDate = nextDate.add(1, 'week');
+            else break;
+        }
+
+        const newDate = nextDate.toDate();
+        sub.nextBillingDate = newDate;
+        sub.alertDate = dayjs(newDate).subtract(alertDays, 'day').startOf('day').toDate();
+        sub.overdueNotified = false; // RESET ⚠️
+        sub.lastReminderSentAt = null; // RESET ⚠️
+        sub.reminderCount = 0; // RESET ⚠️
+        await sub.save();
 
         if (user) {
             sub.userEmail = user.email;
             sub.userPhone = user.phoneNumber;
-            sub.userTimezone = user.timezone;
-            sub.notifyViaEmail = user.preferences?.notifyViaEmail;
-            sub.notifyViaWhatsApp = user.preferences?.notifyViaWhatsApp;
+            sub.syncedAt = new Date();
+            await sub.save();
         }
 
-        await sub.save();
         res.json(sub);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -257,5 +290,251 @@ exports.deleteSubscription = async (req, res) => {
         res.json({ message: 'Deleted successfully', sub });
     } catch (err) {
         res.status(500).json({ error: err.message });
+    }
+};
+
+/**
+ * Sync subscriptions from Gmail using an access token.
+ */
+exports.syncFromGmail = async (req, res) => {
+    try {
+        const { userId, accessToken } = req.body;
+        if (!userId || !accessToken) {
+            return res.status(400).json({ error: 'userId and accessToken are required' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const gmailSyncService = require('../services/gmailSyncService');
+        const detected = await gmailSyncService.syncFromGmail(accessToken, userId);
+
+        console.log("📥 Received from service:", detected.length);
+
+        // Update last sync timestamp
+        user.lastGmailSync = new Date();
+        await user.save();
+
+        const saved = [];
+        for (const item of detected) {
+
+            // 4. Email ID Dedup (STRONGER)
+            if (item.emailId) {
+                const existsByEmail = await Subscription.findOne({
+                    emailId: item.emailId
+                });
+
+                if (existsByEmail) {
+                    console.log("📧 Email already processed");
+                    continue;
+                }
+            }
+
+            // 1. Validate service
+            const serviceName = item.serviceName || item.service;
+            if (!serviceName || typeof serviceName !== "string") {
+                console.warn("❌ Skipped: invalid service");
+                continue;
+            }
+
+            // 1. Validate amount
+            const amount = Number(item.cost || item.amount);
+            if (isNaN(amount) || amount <= 0) {
+                console.warn("❌ Skipped: invalid amount");
+                continue;
+            }
+
+            // 1. Validate date
+            const date = new Date(item.nextBillingDate);
+            if (isNaN(date.getTime())) {
+                console.warn("❌ Skipped: invalid date");
+                continue;
+            }
+
+            // 2. Light Duplicate Protection
+            const exists = await Subscription.findOne({
+                userId,
+                serviceName: serviceName,
+                cost: amount,
+                nextBillingDate: {
+                    $gte: new Date(date.getTime() - 3 * 86400000),
+                    $lte: new Date(date.getTime() + 3 * 86400000)
+                }
+            });
+
+            if (exists) {
+                console.log("🔁 Duplicate skipped:", serviceName);
+                continue;
+            }
+
+            // 3. Safe Save
+            const sub = new Subscription({
+                ...item,
+                userId,
+                serviceName: serviceName, // mapped correctly to Subscription Schema requirement
+                cost: amount,
+                nextBillingDate: date,
+                status: "SUGGESTED",
+                userEmail: user.email,
+                userPhone: user.phoneNumber,
+                userTimezone: user.timezone,
+                notifyViaEmail: user.preferences?.notifyViaEmail,
+                notifyViaWhatsApp: user.preferences?.notifyViaWhatsApp
+            });
+
+            await sub.save();
+            saved.push(sub);
+
+            console.log("✅ Saved:", sub.serviceName);
+        }
+
+        console.log("📊 Final saved:", saved.length);
+
+        res.json(saved);
+    } catch (err) {
+        console.error('[SYNC ERROR]', err);
+        res.status(500).json({ error: 'Gmail Sync failed', details: err.message });
+    }
+};
+
+exports.ignoreSubscription = async (req, res) => {
+    try {
+        const sub = await Subscription.findById(req.params.id);
+        if (!sub) return res.status(404).json({ error: 'Subscription not found' });
+
+        sub.status = 'IGNORED';
+        await sub.save();
+
+        res.json({ message: 'Subscription ignored successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+exports.getInsights = async (req, res) => {
+    try {
+        res.set('Cache-Control', 'no-store');
+        const userId = req.user.id;
+        
+        const subs = await Subscription.find({
+            userId,
+            status: { $regex: /^active$/i }
+        });
+
+        function parseAmount(val) {
+            if (!val) return 0;
+            try {
+                return Number(String(val).replace(/[₹,\s]/g, ""));
+            } catch {
+                return 0;
+            }
+        }
+
+        const totalMonthly = subs.reduce((sum, sub) => {
+            return sum + parseAmount(sub.amount || sub.cost);
+        }, 0);
+
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        const dueSoonLimit = new Date(now);
+        dueSoonLimit.setDate(now.getDate() + 3);
+
+        const overdue = [];
+        const dueSoon = [];
+        const upcoming = [];
+
+        subs.forEach(s => {
+            const d = safeDate(s.nextBillingDate);
+            if (!d) return;
+
+            // Normalize for comparison
+            const compareDate = new Date(d);
+            compareDate.setHours(0, 0, 0, 0);
+
+            if (compareDate < now) overdue.push(s);
+            else if (compareDate <= dueSoonLimit) dueSoon.push(s);
+            else upcoming.push(s);
+        });
+
+        const mostExpensive = subs.reduce((max, sub) => {
+            const current = parseAmount(sub.amount || sub.cost);
+            const prev = parseAmount(max?.amount || max?.cost);
+            return current > prev ? sub : max;
+        }, subs[0] || null);
+
+        res.json({
+            totalMonthly: Number(totalMonthly.toFixed(2)),
+            activeCount: subs.length,
+            overdueCount: overdue.length,
+            dueSoonCount: dueSoon.length,
+            upcomingCount: upcoming.length,
+            mostExpensive: mostExpensive?.serviceName || mostExpensive?.service || null
+        });
+    } catch (err) {
+        console.error("[ERROR] Insights API failed:", err);
+        res.status(500).json({ error: "Failed to generate insights", details: err.message });
+    }
+};
+
+exports.getUpcomingTimeline = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const subs = await Subscription.find({
+            userId,
+            status: { $regex: /^active$/i }
+        });
+
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+
+        const dueSoonLimit = new Date(now);
+        dueSoonLimit.setDate(now.getDate() + 3);
+
+        const overdue = [];
+        const dueSoon = [];
+        const upcoming = [];
+
+        function parseAmount(val) {
+            if (!val) return 0;
+            try { return Number(String(val).replace(/[₹,\s]/g, "")); } catch { return 0; }
+        }
+
+        subs.forEach(sub => {
+            const d = safeDate(sub.nextBillingDate);
+            if (!d) return;
+
+            const compareDate = new Date(d);
+            compareDate.setHours(0, 0, 0, 0);
+
+            const item = {
+                id: sub._id,
+                service: sub.serviceName || sub.service,
+                amount: parseAmount(sub.cost || sub.amount),
+                nextBillingDate: d
+            };
+
+            if (compareDate < now) overdue.push(item);
+            else if (compareDate <= dueSoonLimit) dueSoon.push(item);
+            else upcoming.push(item);
+        });
+
+        // SORTING:
+        // Overdue → most recently missed first
+        overdue.sort((a, b) => new Date(b.nextBillingDate) - new Date(a.nextBillingDate));
+        
+        // Due Soon → nearest first
+        dueSoon.sort((a, b) => new Date(a.nextBillingDate) - new Date(b.nextBillingDate));
+        
+        // Upcoming → nearest first
+        upcoming.sort((a, b) => new Date(a.nextBillingDate) - new Date(b.nextBillingDate));
+
+        res.json({
+            overdue: overdue.slice(0, 10),
+            dueSoon: dueSoon.slice(0, 10),
+            upcoming: upcoming.slice(0, 10)
+        });
+    } catch (err) {
+        res.status(500).json({ error: "Failed to fetch timeline", details: err.message });
     }
 };

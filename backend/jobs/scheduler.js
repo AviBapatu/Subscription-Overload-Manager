@@ -5,7 +5,7 @@ const timezone = require('dayjs/plugin/timezone');
 const Subscription = require('../models/Subscription');
 const NotificationLog = require('../models/NotificationLog');
 const { getRenewalAlertHTML } = require('../templates/emailTemplates');
-const { sendBrevoEmail } = require('../services/emailService');
+const { sendBrevoEmail, sendOverdueEmail } = require('../services/emailService');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -65,16 +65,35 @@ const runSubscriptionAlerts = async () => {
   }
 };
 
+
 /**
  * Initializes the node-cron scheduler.
  */
 const initCronJobs = () => {
-    // Schedule task every hour at minute 0
+    // Schedule renewal alerts (daily check, first hour of user's timezone)
     cron.schedule('0 * * * *', runSubscriptionAlerts);
-    console.log('Node-Cron started: Scheduled [send-subscription-alerts] to run hourly.');
+    
+    // Overdue alerts
+    cron.schedule('0 * * * *', async () => {
+        // 1. Identify overdue subscriptions: (date < today AND status === 'ACTIVE')
+        // 2. Filter those already notified: (overdueNotified !== true)
+        const overdue = await Subscription.find({
+            nextBillingDate: { $lt: new Date() },
+            status: 'ACTIVE',
+            overdueNotified: { $ne: true }
+        });
+
+        for (const sub of overdue) {
+            await sendOverdueEmail(sub);
+            sub.overdueNotified = true;
+            await sub.save();
+        }
+    });
+    
+    console.log('Node-Cron started: Scheduled [send-subscription-alerts] and [overdue-alerts] to run hourly.');
 };
 
 module.exports = {
     initCronJobs,
-    runSubscriptionAlerts // exported for direct testing if required
+    runSubscriptionAlerts
 };

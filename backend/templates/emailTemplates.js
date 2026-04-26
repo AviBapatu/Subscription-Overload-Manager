@@ -287,14 +287,62 @@ const getNewSubscriptionHTML = (userName, sub) => {
     return wrap('#4A6BFF', '✨', `New Subscription: ${sub.serviceName}`, body);
 };
 
+/* ───────────────────────────────────────────────────────────────────────────
+ *  9. OVERDUE PAYMENT ALERT
+ * ─────────────────────────────────────────────────────────────────────────── */
+const getOverdueAlertHTML = (sub) => {
+    const formattedDate = dayjs(sub.nextBillingDate).format('MMMM D, YYYY');
+
+    const body = `
+    <h3>Overdue Alert: ${sub.serviceName}</h3>
+    <p style="margin-top:8px;">Your payment for <strong>${sub.serviceName}</strong> (due on <strong>${formattedDate}</strong>) appears to be past due.</p>
+    <div class="badge" style="text-align:center; width:100%; background:#FFE8E8;">
+      <div class="badge-amount" style="color:#C0392B;">$${sub.cost.toFixed(2)}</div>
+      <div class="badge-label" style="color:#C0392B;">Overdue Amount</div>
+    </div>
+    <hr class="divider"/>
+    <p style="font-size:13px; color:#C0392B; font-weight:700;">Please mark this as paid in your dashboard once resolved to resume accurate tracking.</p>
+    <div class="chip-row">
+      <span class="chip danger">⚠️ Overdue</span>
+      <span class="chip">${sub.serviceName}</span>
+    </div>
+    <div style="text-align:center;">
+      <a class="btn" href="#" style="background:#E74C3C;">Resolve in Dashboard →</a>
+    </div>`;
+
+    return wrap('#E74C3C', '⚠️', `Overdue Alert: ${sub.serviceName}`, body);
+};
+
 /* ─── Exports ──────────────────────────────────────────────────────────────── */
 module.exports = {
-    getRenewalAlertHTML,
-    getOtpEmailHTML,
-    getFreeTrialEndingHTML,
-    getFailedPaymentHTML,
-    getPriceIncreaseHTML,
-    getWeeklySummaryHTML,
-    getBudgetAlertHTML,
-    getNewSubscriptionHTML,
+    getOverdueAlertHTML,
+    getDueSoonAlertHTML: (sub) => {
+        const body = `
+        <h3>Upcoming Payment Reminder</h3>
+        <p style="margin-top:8px;">Friendly nudge: Your <strong>${sub.serviceName}</strong> subscription is due in the next 3 days.</p>
+        <div class="badge" style="text-align:center; width:100%;">
+          <div class="badge-amount">$${sub.cost.toFixed(2)}</div>
+          <div class="badge-label">Upcoming charge</div>
+        </div>
+        <hr class="divider"/>
+        <div style="text-align:center;">
+          <a class="btn" href="#">Confirm Payment Info →</a>
+        </div>`;
+        return wrap('#4A6BFF', '📅', `Reminder: ${sub.serviceName} is due soon`, body);
+    },
+    getEscalationAlertHTML: (sub) => {
+        const body = `
+        <h3 style="color:#C0392B;">Action Required: Payment Still Pending</h3>
+        <p style="margin-top:8px;">This is an escalation regarding your <strong>${sub.serviceName}</strong> payment, which remains overdue.</p>
+        <div class="badge" style="text-align:center; width:100%; background:#FFE8E8;">
+          <div class="badge-amount" style="color:#C0392B;">$${sub.cost.toFixed(2)}</div>
+          <div class="badge-label" style="color:#C0392B;">Action Required</div>
+        </div>
+        <hr class="divider"/>
+        <p style="font-size:13px; font-weight:700;">Please resolve this immediately to avoid service disruption or tracking inaccuracies.</p>
+        <div style="text-align:center;">
+          <a class="btn" href="#" style="background:#E74C3C;">Resolve Now →</a>
+        </div>`;
+        return wrap('#E74C3C', '⚠️', `⚠️ URGENT: ${sub.serviceName} Payment Pending`, body);
+    }
 };

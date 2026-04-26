@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
 import { useAuth } from '../lib/AuthContext';
-import { fetchSubscriptions, addSubscription, updateSubscription, updateSubscriptionStatus, paySubscription, deleteSubscription } from '../lib/api';
+import { fetchSubscriptions, addSubscription, updateSubscription, updateSubscriptionStatus, paySubscription, deleteSubscription, ignoreSubscription } from '../lib/api';
 
 const CATEGORIES = ['Entertainment', 'Software', 'News', 'Gaming', 'Music', 'Fitness', 'Education', 'Cloud', 'Other'];
 
@@ -11,7 +11,7 @@ const SubscriptionsGrid = () => {
     const queryClient = useQueryClient();
 
     const [view, setView] = useState('grid');
-    const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, ACTIVE, PAUSED, CANCELLED
+    const [statusFilter, setStatusFilter] = useState('ALL'); // ALL, ACTIVE, PAUSED, CANCELLED, PENDING
 
     // Modal state
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -24,36 +24,87 @@ const SubscriptionsGrid = () => {
         nextBillingDate: dayjs().add(1, 'month').format('YYYY-MM-DD')
     });
 
+    const [lastApprovedId, setLastApprovedId] = useState(null);
+
     const { data: subscriptions = [], isLoading } = useQuery({
         queryKey: ['subscriptions', userId, statusFilter],
-        queryFn: () => fetchSubscriptions(userId, statusFilter === 'ALL' ? undefined : statusFilter),
+        queryFn: () => {
+            const status = statusFilter === 'PENDING' ? 'SUGGESTED' : (statusFilter === 'ALL' ? undefined : statusFilter);
+            return fetchSubscriptions(userId, status);
+        },
         enabled: !!userId
     });
+
+    // Filter out IGNORED for the 'ALL' view
+    const visibleSubs = subscriptions.filter(s => s.status !== 'IGNORED');
 
     // Mutations
     const addMut = useMutation({
         mutationFn: (data) => addSubscription(userId, data),
-        onSuccess: () => { queryClient.invalidateQueries(['subscriptions']); closeModal(); }
+        onSuccess: () => { 
+            queryClient.invalidateQueries(['subscriptions']); 
+            queryClient.invalidateQueries(['insights']);
+            queryClient.invalidateQueries(['stats']);
+            queryClient.invalidateQueries(['upcomingTimeline']);
+            closeModal(); 
+        }
     });
 
     const editMut = useMutation({
         mutationFn: ({ id, data }) => updateSubscription(id, data),
-        onSuccess: () => { queryClient.invalidateQueries(['subscriptions']); closeModal(); }
+        onSuccess: () => { 
+            queryClient.invalidateQueries(['subscriptions']); 
+            queryClient.invalidateQueries(['insights']);
+            queryClient.invalidateQueries(['stats']);
+            queryClient.invalidateQueries(['upcomingTimeline']);
+            closeModal(); 
+        }
     });
 
     const statusMut = useMutation({
         mutationFn: ({ id, status }) => updateSubscriptionStatus(id, status),
-        onSuccess: () => queryClient.invalidateQueries(['subscriptions'])
+        onSuccess: (data, variables) => {
+            queryClient.invalidateQueries(['subscriptions']);
+            queryClient.invalidateQueries(['insights']);
+            queryClient.invalidateQueries(['stats']);
+            queryClient.invalidateQueries(['upcomingTimeline']);
+            if (variables.status === 'ACTIVE') {
+                setLastApprovedId(variables.id);
+                setTimeout(() => setLastApprovedId(null), 5000); // Clear after 5s
+            }
+        },
+        onError: (err) => alert(`Action failed: ${err.message}`)
+    });
+
+    const ignoreMut = useMutation({
+        mutationFn: (id) => ignoreSubscription(id),
+        onSuccess: () => {
+            queryClient.invalidateQueries(['subscriptions']);
+            queryClient.invalidateQueries(['insights']);
+            queryClient.invalidateQueries(['stats']);
+            queryClient.invalidateQueries(['upcomingTimeline']);
+        },
+        onError: (err) => alert(`Ignore action failed: ${err.message}`)
     });
 
     const payMut = useMutation({
         mutationFn: (id) => paySubscription(id),
-        onSuccess: () => queryClient.invalidateQueries(['subscriptions'])
+        onSuccess: () => {
+            queryClient.invalidateQueries(['subscriptions']);
+            queryClient.invalidateQueries(['insights']);
+            queryClient.invalidateQueries(['stats']);
+            queryClient.invalidateQueries(['upcomingTimeline']);
+        }
     });
 
     const deleteMut = useMutation({
         mutationFn: (id) => deleteSubscription(id),
-        onSuccess: () => queryClient.invalidateQueries(['subscriptions'])
+        onSuccess: () => {
+            queryClient.invalidateQueries(['subscriptions']);
+            queryClient.invalidateQueries(['insights']);
+            queryClient.invalidateQueries(['stats']);
+            queryClient.invalidateQueries(['upcomingTimeline']);
+        }
     });
 
     // Compute stats from current view
@@ -80,7 +131,7 @@ const SubscriptionsGrid = () => {
         setFormData({
             serviceName: sub.serviceName,
             cost: sub.cost,
-            billingCycle: sub.billingCycle,
+            billingCycle: sub.billingCycle || 'MONTHLY',
             category: sub.category || 'Other',
             nextBillingDate: dayjs(sub.nextBillingDate).format('YYYY-MM-DD')
         });
@@ -138,10 +189,10 @@ const SubscriptionsGrid = () => {
                 <div className="flex flex-col sm:flex-row gap-4 items-end">
                     {/* View & Filter Tabs */}
                     <div className="flex bg-surface-container-low p-1.5 rounded-full self-start md:self-end">
-                        {['ALL', 'ACTIVE', 'PAUSED', 'CANCELLED'].map(sf => (
+                        {['ALL', 'ACTIVE', 'PENDING'].map(sf => (
                             <button key={sf}
                                 onClick={() => setStatusFilter(sf)}
-                                className={`px-4 py-1.5 rounded-full text-sm font-semibold transition-all ${statusFilter === sf ? 'bg-surface-container-lowest text-on-surface shadow-sm' : 'text-on-surface-variant hover:bg-surface-container/50'}`}>
+                                className={`px-6 py-1.5 rounded-full text-sm font-semibold transition-all ${statusFilter === sf ? 'bg-surface-container-lowest text-on-surface shadow-sm' : 'text-on-surface-variant hover:bg-surface-container/50'}`}>
                                 {sf === 'ALL' ? 'All' : sf.charAt(0) + sf.slice(1).toLowerCase()}
                             </button>
                         ))}
@@ -168,52 +219,96 @@ const SubscriptionsGrid = () => {
                     ))
                 )}
 
-                {subscriptions.map(sub => {
+                {visibleSubs.map(sub => {
                     const theme = getCardTheme(sub.category);
                     const daysLeft = dayjs(sub.nextBillingDate).diff(dayjs(), 'day');
-                    const progress = Math.max(0, Math.min(100, (daysLeft / 30) * 100)); // Rough estimate
+                    const progress = Math.max(0, Math.min(100, (daysLeft / 30) * 100));
+                    const isSuggested = sub.status === 'SUGGESTED';
+                    const isNewlyApproved = lastApprovedId === sub._id;
 
                     return (
-                        <div key={sub._id} className={`group relative bg-surface-container-lowest rounded-2xl p-8 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] overflow-hidden ${sub.status !== 'ACTIVE' ? 'opacity-70 grayscale-[50%]' : ''}`}>
+                        <div key={sub._id} className={`group relative bg-surface-container-lowest rounded-2xl p-8 transition-all hover:shadow-[0_20px_40px_rgba(0,0,0,0.06)] overflow-hidden ${(!isSuggested && sub.status !== 'ACTIVE') ? 'opacity-70 grayscale-[50%]' : ''}`}>
+                            
+                            {/* Success Overlay for Hybrid Flow */}
+                            {isNewlyApproved && (
+                                <div className="absolute inset-0 z-30 bg-primary/95 flex flex-col items-center justify-center text-center p-6 animate-in fade-in zoom-in-95 duration-300">
+                                    <span className="material-symbols-outlined text-white text-5xl mb-4">check_circle</span>
+                                    <h3 className="text-white font-black text-xl mb-2">Approved Successfully</h3>
+                                    <p className="text-white/80 text-sm mb-6">Subscription added to your active list.</p>
+                                    <div className="flex gap-3">
+                                        <button onClick={() => { setLastApprovedId(null); openEditModal(sub); }} 
+                                            className="bg-white text-primary px-6 py-2.5 rounded-full font-bold text-sm hover:scale-105 transition-all">
+                                            Edit Details
+                                        </button>
+                                        <button onClick={() => setLastApprovedId(null)}
+                                            className="border border-white/30 text-white px-6 py-2.5 rounded-full font-bold text-sm hover:bg-white/10 transition-all">
+                                            Dismiss
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
                             {sub.status === 'ACTIVE' && (
                                 <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${theme.grad} to-transparent rounded-bl-[100px] pointer-events-none`} />
                             )}
 
+                            {isSuggested && (
+                                <div className="absolute top-4 right-4 z-10">
+                                    {sub.source === 'llm' ? (
+                                        <div className="bg-amber-500/10 text-amber-600 border border-amber-400/30 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-sm">smart_toy</span>
+                                            AI Detected
+                                        </div>
+                                    ) : (
+                                        <div className="bg-tertiary/10 text-tertiary px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                                            <span className="material-symbols-outlined text-sm">auto_awesome</span>
+                                            Detected
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
                             <div className="flex justify-between items-start mb-6 relative z-10">
-                                <div className={`w-14 h-14 ${theme.bg} rounded-full flex items-center justify-center shadow-lg ${theme.ring}`}>
-                                    <span className="material-symbols-outlined text-white text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>{theme.icon}</span>
+                                <div className={`w-14 h-14 ${isSuggested ? 'bg-surface-container-high' : theme.bg} rounded-full flex items-center justify-center shadow-lg ${isSuggested ? '' : theme.ring}`}>
+                                    <span className={`material-symbols-outlined ${isSuggested ? 'text-on-surface-variant' : 'text-white'} text-[28px]`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                                        {isSuggested ? 'mail' : theme.icon}
+                                    </span>
                                 </div>
-                                <div className="group/menu relative">
-                                    <button className="material-symbols-outlined text-outline-variant hover:text-on-surface hover:bg-surface-container-low w-8 h-8 rounded-full transition-colors flex items-center justify-center">
-                                        more_vert
-                                    </button>
-                                    <div className="absolute right-0 top-full mt-1 w-40 bg-surface-container-lowest rounded-lg shadow-xl border border-outline-variant/10 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all z-20 py-2">
-                                        <button onClick={() => openEditModal(sub)} className="w-full text-left px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">edit</span> Edit</button>
+                                {!isSuggested && (
+                                    <div className="group/menu relative">
+                                        <button className="material-symbols-outlined text-outline-variant hover:text-on-surface hover:bg-surface-container-low w-8 h-8 rounded-full transition-colors flex items-center justify-center">
+                                            more_vert
+                                        </button>
+                                        <div className="absolute right-0 top-full mt-1 w-40 bg-surface-container-lowest rounded-lg shadow-xl border border-outline-variant/10 opacity-0 invisible group-hover/menu:opacity-100 group-hover/menu:visible transition-all z-20 py-2">
+                                            <button onClick={() => openEditModal(sub)} className="w-full text-left px-4 py-2 text-sm text-on-surface hover:bg-surface-container-low flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">edit</span> Edit</button>
 
-                                        {sub.status === 'ACTIVE' ? (
-                                            <button onClick={() => statusMut.mutate({ id: sub._id, status: 'PAUSED' })} className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-container-low flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">pause</span> Pause</button>
-                                        ) : (
-                                            <button onClick={() => statusMut.mutate({ id: sub._id, status: 'ACTIVE' })} className="w-full text-left px-4 py-2 text-sm text-primary hover:bg-surface-container-low flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">play_arrow</span> Resume</button>
-                                        )}
+                                            {sub.status === 'ACTIVE' ? (
+                                                <button onClick={() => statusMut.mutate({ id: sub._id, status: 'PAUSED' })} className="w-full text-left px-4 py-2 text-sm text-secondary hover:bg-surface-container-low flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">pause</span> Pause</button>
+                                            ) : (
+                                                <button onClick={() => statusMut.mutate({ id: sub._id, status: 'ACTIVE' })} className="w-full text-left px-4 py-2 text-sm text-primary hover:bg-surface-container-low flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">play_arrow</span> Resume</button>
+                                            )}
 
-                                        <hr className="my-2 border-outline-variant/10" />
-                                        <button onClick={() => deleteMut.mutate(sub._id)} className="w-full text-left px-4 py-2 text-sm text-error hover:bg-error/10 flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">delete</span> Delete</button>
+                                            <hr className="my-2 border-outline-variant/10" />
+                                            <button onClick={() => deleteMut.mutate(sub._id)} className="w-full text-left px-4 py-2 text-sm text-error hover:bg-error/10 flex items-center gap-2"><span className="material-symbols-outlined text-[18px]">delete</span> Delete</button>
+                                        </div>
                                     </div>
-                                </div>
+                                )}
                             </div>
 
                             <div className="mb-6">
                                 <h3 className="text-xl font-bold text-on-background tracking-tight">{sub.serviceName}</h3>
                                 <p className="text-on-surface-variant text-sm font-medium flex items-center gap-1.5 mt-1">
-                                    {sub.category}
+                                    {isSuggested
+                                        ? (sub.source === 'llm' ? '🤖 Detected by AI' : '📧 Detected from Gmail')
+                                        : sub.category}
                                     {sub.status === 'PAUSED' && <span className="bg-surface-container px-2 py-0.5 rounded text-xs">PAUSED</span>}
                                     {sub.status === 'CANCELLED' && <span className="bg-error-container text-on-error-container px-2 py-0.5 rounded text-xs">CANCELLED</span>}
                                 </p>
                             </div>
 
-                            <div className="flex items-end justify-between mb-6">
+                            <div className="flex items-end justify-between mb-8">
                                 <div>
-                                    <p className="text-[10px] font-bold text-outline-variant uppercase tracking-widest mb-1">{sub.billingCycle}</p>
+                                    <p className="text-[10px] font-bold text-outline-variant uppercase tracking-widest mb-1">{sub.billingCycle || 'MONTHLY'}</p>
                                     <p className="text-3xl font-black text-on-background tracking-tighter">${sub.cost.toFixed(2)}</p>
                                 </div>
                                 <div className="text-right">
@@ -222,7 +317,23 @@ const SubscriptionsGrid = () => {
                                 </div>
                             </div>
 
-                            {sub.status === 'ACTIVE' && (
+                            {isSuggested ? (
+                                <div className="grid grid-cols-2 gap-3">
+                                    <button
+                                        onClick={() => statusMut.mutate({ id: sub._id, status: 'ACTIVE' })}
+                                        disabled={statusMut.isPending || ignoreMut.isPending}
+                                        className="py-3 bg-primary text-white text-xs font-black rounded-xl hover:bg-primary-dim transition-all shadow-md shadow-primary/20 flex items-center justify-center gap-1.5 disabled:opacity-50">
+                                        <span className="material-symbols-outlined text-[18px]">check</span> Approve
+                                    </button>
+                                    <button
+                                        onClick={() => ignoreMut.mutate(sub._id)}
+                                        disabled={statusMut.isPending || ignoreMut.isPending}
+                                        className="py-3 bg-surface-container hover:bg-surface-container-high text-on-surface text-xs font-black rounded-xl transition-all flex items-center justify-center gap-1.5 disabled:opacity-50">
+                                        <span className="material-symbols-outlined text-[18px]">close</span> 
+                                        {ignoreMut.isPending ? 'Ignoring...' : 'Ignore'}
+                                    </button>
+                                </div>
+                            ) : sub.status === 'ACTIVE' && (
                                 <div className="space-y-3">
                                     <div className="w-full bg-surface-container-low h-1.5 rounded-full overflow-hidden">
                                         <div className={`${theme.bg} h-full rounded-full transition-all`} style={{ width: `${Math.max(5, progress)}%` }} />
@@ -239,6 +350,24 @@ const SubscriptionsGrid = () => {
                     );
                 })}
             </div>
+
+            {visibleSubs.length === 0 && !isLoading && (
+                <div className="flex flex-col items-center justify-center py-20 text-center animate-in fade-in duration-500">
+                    <div className="w-24 h-24 bg-surface-container-low rounded-full flex items-center justify-center mb-6">
+                        <span className="material-symbols-outlined text-outline-variant text-[40px]">
+                            {statusFilter === 'PENDING' ? 'verified' : 'inventory_2'}
+                        </span>
+                    </div>
+                    <h3 className="text-2xl font-black text-on-surface tracking-tight mb-2">
+                        {statusFilter === 'PENDING' ? "You're all caught up!" : "No subscriptions found"}
+                    </h3>
+                    <p className="text-on-surface-variant max-w-xs leading-relaxed">
+                        {statusFilter === 'PENDING' 
+                            ? "No new subscriptions were detected in your Gmail recently." 
+                            : `Try switching your filter or adding a new service manually.`}
+                    </p>
+                </div>
+            )}
 
             {/* Modal Overlay */}
             {isModalOpen && (

@@ -1,13 +1,14 @@
-import React, { useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import React, { useMemo, useState, useRef } from 'react';
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
     PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { fetchStats, fetchUpcoming, fetchSpendingHistory, fetchCategoryBreakdown } from '../lib/api';
+import { fetchStats, fetchUpcoming, fetchSpendingHistory, fetchCategoryBreakdown, syncFromGmail, fetchInsights, fetchUpcomingTimeline, paySubscription } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
+import { useGoogleLogin } from '@react-oauth/google';
 
 dayjs.extend(relativeTime);
 
@@ -90,6 +91,55 @@ const TimelineItem = ({ sub, index, isLast }) => {
 // ─── Main Dashboard ───────────────────────────────────────────────────────────
 const Dashboard = () => {
     const { userId } = useAuth();
+    const queryClient = useQueryClient();
+    const [isSyncing, setIsSyncing] = useState(false);
+    const timelineRef = useRef(null);
+
+    const scrollToTimeline = () => {
+        timelineRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+
+    const gmailLogin = useGoogleLogin({
+        onSuccess: async (tokenResponse) => {
+            setIsSyncing(true);
+            try {
+                const res = await syncFromGmail(userId, tokenResponse.access_token);
+                console.log('Sync Response:', res);
+                const count = Array.isArray(res) ? res.length : (res.data?.length || 0);
+                alert(`Sync complete! Found ${count} subscriptions.`);
+                queryClient.invalidateQueries(['subscriptions']);
+                queryClient.invalidateQueries(['stats']);
+                queryClient.invalidateQueries(['insights']);
+                queryClient.invalidateQueries(['upcomingTimeline']);
+            } catch (err) {
+                console.error('Sync failed:', err);
+                alert('Could not sync Gmail. Try again later.');
+            } finally {
+                setIsSyncing(false);
+            }
+        },
+        onError: (err) => {
+            console.error('Login Failed:', err);
+            alert('Google authorization failed.');
+        },
+        scope: 'https://www.googleapis.com/auth/gmail.readonly'
+    });
+
+    const { mutate: markAsPaid } = useQueryClient(); // Placeholder for naming, using mutate below
+    
+    const { mutate: handleMarkPaid } = useMutation({
+        mutationFn: paySubscription,
+        onSuccess: () => {
+            queryClient.invalidateQueries(['stats']);
+            queryClient.invalidateQueries(['insights']);
+            queryClient.invalidateQueries(['upcomingTimeline']);
+            alert('🎉 Payment recorded successfully!');
+        },
+        onError: (err) => {
+            console.error('Failed to mark as paid:', err);
+            alert('Could not update payment status.');
+        }
+    });
 
     const { data: stats, isLoading: statsLoading } = useQuery({
         queryKey: ['stats', userId],
@@ -97,11 +147,21 @@ const Dashboard = () => {
         enabled: !!userId
     });
 
-    const { data: upcoming, isLoading: upcomingLoading } = useQuery({
-        queryKey: ['upcoming', userId],
-        queryFn: () => fetchUpcoming(userId, 5),
+    const { data: insights, isLoading: insightsLoading } = useQuery({
+        queryKey: ['insights', userId],
+        queryFn: () => fetchInsights(userId),
         enabled: !!userId
     });
+
+    const { data: timelineData, isLoading: timelineLoading } = useQuery({
+        queryKey: ['upcomingTimeline', userId],
+        queryFn: () => fetchUpcomingTimeline(),
+        enabled: !!userId
+    });
+
+    const overdue = timelineData?.overdue || [];
+    const dueSoon = timelineData?.dueSoon || [];
+    const upcoming = timelineData?.upcoming || [];
 
     const { data: spendingHistory, isLoading: historyLoading } = useQuery({
         queryKey: ['spending-history', userId],
@@ -133,7 +193,22 @@ const Dashboard = () => {
     return (
         <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
 
-            {/* ── Hero ──────────────────────────────────────────────────────── */}
+            {/* ── Privacy Banner ─────────────────────────────────────────── */}
+            <div className="flex items-start gap-3 bg-primary/5 border border-primary/15 rounded-2xl px-5 py-4 text-sm text-on-surface-variant">
+                <span className="material-symbols-outlined text-primary mt-0.5 shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>lock</span>
+                <div className="flex-1 min-w-0">
+                    <span className="font-semibold text-on-surface">Privacy First —</span>{' '}
+                    We only read billing-related emails (invoices, receipts, renewals) to detect subscriptions.
+                    Your email content is never stored on our servers.{' '}
+                    {stats?.lastGmailSync && (
+                        <span className="opacity-70">Last scanned {dayjs(stats.lastGmailSync).fromNow()}.</span>
+                    )}
+                </div>
+                <a href="/profile" className="shrink-0 text-xs font-bold text-primary uppercase tracking-widest hover:underline whitespace-nowrap">
+                    Manage Access
+                </a>
+            </div>
+
             <section className="mb-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
                 <div className="space-y-6">
                     <h1 className="text-5xl xl:text-6xl font-extrabold tracking-tighter text-on-surface leading-tight">
@@ -144,11 +219,23 @@ const Dashboard = () => {
                         Manage <span className="font-bold text-on-surface">{stats?.activeCount ?? '…'} active subscriptions</span>.
                         {' '}Spending <span className="font-bold text-primary">${stats?.monthlySpend?.toFixed(2) ?? '…'}</span> this month.
                     </p>
+                    {stats?.lastGmailSync && (
+                        <p className="text-sm font-bold text-outline-variant uppercase tracking-widest">
+                            Last synced: {dayjs(stats.lastGmailSync).fromNow()}
+                        </p>
+                    )}
                     <div className="flex gap-4 flex-wrap">
                         <a href="/subscriptions"
                             className="bg-surface-container-highest px-8 py-4 rounded-full font-bold hover:bg-surface-container-high transition-all text-on-surface">
                             View All Subs
                         </a>
+                        <button
+                            onClick={() => gmailLogin()}
+                            disabled={isSyncing}
+                            className="bg-surface-container-highest px-8 py-4 rounded-full font-bold hover:bg-surface-container-high transition-all text-on-surface flex items-center gap-2">
+                            <span className="material-symbols-outlined">{isSyncing ? 'sync' : 'auto_awesome'}</span>
+                            {isSyncing ? 'Scanning Gmail...' : 'Scan Gmail'}
+                        </button>
                         <a href="/subscriptions"
                             className="bg-primary text-on-primary px-8 py-4 rounded-full font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all">
                             + Add Subscription
@@ -214,154 +301,259 @@ const Dashboard = () => {
                 </div>
             </section>
 
+            {/* ── Overdue Alert Banner ─────────────────────────────────────────── */}
+            {overdue.length > 0 && (
+                <div className="bg-error/5 border border-error/20 rounded-2xl p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 animate-pulse hover:animate-none transition-all">
+                    <div className="flex items-center gap-5 text-center md:text-left">
+                        <div className="w-14 h-14 rounded-full bg-error/10 flex items-center justify-center text-error">
+                            <span className="material-symbols-outlined text-[32px]" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                        </div>
+                        <div>
+                            <h2 className="text-xl font-bold text-on-surface">Overdue Payments Detected</h2>
+                            <p className="text-on-surface-variant font-medium">You have {overdue.length} subscriptions that need immediate attention.</p>
+                        </div>
+                    </div>
+                    <button 
+                        onClick={scrollToTimeline}
+                        className="bg-error text-white px-8 py-3.5 rounded-full font-bold hover:scale-105 active:scale-95 transition-all shadow-lg shadow-error/20 whitespace-nowrap">
+                        Review & Resolve Now
+                    </button>
+                </div>
+            )}
+
             {/* ── Overview Cards ─────────────────────────────────────────────── */}
             <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 mb-10">
                 <StatCard icon="payments" label="Monthly Spend" color="primary"
-                    value={`$${stats?.monthlySpend?.toFixed(2) ?? '0'}`}
-                    sub={<span className="text-on-surface-variant">across all active services</span>}
-                    loading={statsLoading} />
-                <StatCard icon="calendar_today" label="Due This Week" color="tertiary"
-                    value={`$${stats?.upcoming7DayCost?.toFixed(2) ?? '0'}`}
-                    sub={<span className="text-on-surface-variant">in the next 7 days</span>}
-                    loading={statsLoading} />
+                    value={insights ? `₹${insights.totalMonthly.toLocaleString('en-IN')}` : '₹0'}
+                    sub={<span className="text-on-surface-variant">total monthly obligation</span>}
+                    loading={insightsLoading} />
+                <StatCard icon="warning" label="Overdue" color="error"
+                    value={insights?.overdueCount ?? '0'}
+                    sub={<span className="text-on-surface-variant">past due payments</span>}
+                    loading={insightsLoading} />
+                <StatCard icon="schedule" label="Due Soon" color="tertiary"
+                    value={insights?.dueSoonCount ?? '0'}
+                    sub={<span className="text-on-surface-variant">billing in next 3 days</span>}
+                    loading={insightsLoading} />
+                <StatCard icon="event_repeat" label="Upcoming" color="primary"
+                    value={insights?.upcomingCount ?? '0'}
+                    sub={<span className="text-on-surface-variant">billing thereafter</span>}
+                    loading={insightsLoading} />
                 <StatCard icon="verified_user" label="Active Services" color="secondary"
-                    value={stats?.activeCount ?? '0'}
-                    sub={<span className="text-on-surface-variant">{stats?.pausedCount ?? 0} paused · {stats?.cancelledCount ?? 0} cancelled</span>}
-                    loading={statsLoading} />
-                <StatCard icon="priority_high" label="Most Expensive" color="error"
-                    value={stats?.mostExpensive?.name ?? '—'}
-                    sub={<span className="text-on-surface-variant">
-                        {stats?.mostExpensive
-                            ? `$${stats.mostExpensive.cost} · ${stats.mostExpensive.billingCycle.toLowerCase()}`
-                            : 'No active subscriptions'}
-                    </span>}
-                    loading={statsLoading} />
+                    value={insights?.activeCount ?? '0'}
+                    sub={<span className="text-on-surface-variant">currently managed</span>}
+                    loading={insightsLoading} />
             </section>
 
-            {/* ── Analytics + Timeline ────────────────────────────────────────── */}
-            <section className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-
-                {/* Left column: AreaChart + PieChart */}
-                <div className="lg:col-span-2 space-y-8">
-
-                    {/* AreaChart: Spending History */}
-                    <div className="p-8 rounded-xl bg-surface-container-lowest shadow-sm">
-                        <div className="flex justify-between items-end mb-8">
-                            <div>
-                                <h2 className="text-xl font-bold tracking-tight mb-1">Spending Analytics</h2>
-                                <p className="text-on-surface-variant text-sm">Monthly trend — last 6 months</p>
-                            </div>
+            {/* ── Analytics Section ────────────────────────────────────────── */}
+            <section className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* AreaChart: Spending History */}
+                <div className="p-8 rounded-xl bg-surface-container-lowest shadow-sm">
+                    <div className="flex justify-between items-end mb-8">
+                        <div>
+                            <h2 className="text-xl font-bold tracking-tight mb-1">Spending Analytics</h2>
+                            <p className="text-on-surface-variant text-sm">Monthly trend — last 6 months</p>
                         </div>
-                        {historyLoading ? (
-                            <Skeleton className="h-64 w-full" />
-                        ) : (
-                            <ResponsiveContainer width="100%" height={240}>
-                                <AreaChart data={spendingHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-                                    <defs>
-                                        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#0058bb" stopOpacity={0.18} />
-                                            <stop offset="95%" stopColor="#0058bb" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e8ec" vertical={false} />
-                                    <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 700, fill: '#595c5e' }}
-                                        tickFormatter={(v) => v.split(' ')[0]} axisLine={false} tickLine={false} />
-                                    <YAxis tick={{ fontSize: 11, fill: '#595c5e' }} tickFormatter={v => `$${v}`}
-                                        axisLine={false} tickLine={false} width={52} />
-                                    <Tooltip content={<AreaTooltip />} />
-                                    <Area type="monotone" dataKey="spend" stroke="#0058bb" strokeWidth={2.5}
-                                        fill="url(#areaGrad)" dot={{ fill: '#0058bb', r: 4, strokeWidth: 0 }}
-                                        activeDot={{ r: 6, fill: '#0058bb', stroke: '#fff', strokeWidth: 2 }} />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        )}
                     </div>
+                    {historyLoading ? (
+                        <Skeleton className="h-64 w-full" />
+                    ) : (
+                        <ResponsiveContainer width="100%" height={240}>
+                            <AreaChart data={spendingHistory} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#0058bb" stopOpacity={0.18} />
+                                        <stop offset="95%" stopColor="#0058bb" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="#e5e8ec" vertical={false} />
+                                <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 700, fill: '#595c5e' }}
+                                    tickFormatter={(v) => v.split(' ')[0]} axisLine={false} tickLine={false} />
+                                <YAxis tick={{ fontSize: 11, fill: '#595c5e' }} tickFormatter={v => `$${v}`}
+                                    axisLine={false} tickLine={false} width={52} />
+                                <Tooltip content={<AreaTooltip />} />
+                                <Area type="monotone" dataKey="spend" stroke="#0058bb" strokeWidth={2.5}
+                                    fill="url(#areaGrad)" dot={{ fill: '#0058bb', r: 4, strokeWidth: 0 }}
+                                    activeDot={{ r: 6, fill: '#0058bb', stroke: '#fff', strokeWidth: 2 }} />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    )}
+                </div>
 
-                    {/* PieChart: Category Breakdown */}
-                    <div className="p-8 rounded-xl bg-surface-container-lowest shadow-sm">
-                        <div className="mb-6">
-                            <h2 className="text-xl font-bold tracking-tight mb-1">Spending Breakdown</h2>
-                            <p className="text-on-surface-variant text-sm">By category</p>
-                        </div>
-                        {categoryLoading ? (
-                            <Skeleton className="h-52 w-full" />
-                        ) : categoryBreakdown?.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center h-48 text-on-surface-variant">
-                                <span className="material-symbols-outlined text-5xl mb-3 opacity-30">pie_chart</span>
-                                <p className="font-medium">No active subscriptions yet</p>
-                            </div>
-                        ) : (
-                            <div className="flex flex-col lg:flex-row items-center gap-6">
-                                <ResponsiveContainer width="100%" height={200}>
-                                    <PieChart>
-                                        <Pie data={categoryBreakdown} dataKey="value" nameKey="name"
-                                            cx="50%" cy="50%" innerRadius={55} outerRadius={85}
-                                            paddingAngle={3} strokeWidth={0}>
-                                            {categoryBreakdown?.map((_, i) => (
-                                                <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip content={<PieTooltip />} />
-                                        <Legend
-                                            formatter={(v) => <span className="text-xs font-bold text-on-surface-variant">{v}</span>}
-                                            iconSize={8} iconType="circle" />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                                {/* Breakdown list */}
-                                <div className="w-full lg:max-w-xs space-y-3">
-                                    {categoryBreakdown?.map((d, i) => (
-                                        <div key={d.name} className="flex items-center justify-between p-3 rounded-lg bg-surface-container-low">
-                                            <div className="flex items-center gap-3">
-                                                <span className="w-3 h-3 rounded-full flex-shrink-0"
-                                                    style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
-                                                <div>
-                                                    <p className="font-bold text-sm text-on-surface">{d.name}</p>
-                                                    <p className="text-xs text-on-surface-variant">{d.count} subscription{d.count !== 1 ? 's' : ''}</p>
-                                                </div>
-                                            </div>
-                                            <div className="text-right">
-                                                <p className="font-black text-sm text-on-surface">${d.value}/mo</p>
-                                                <p className="text-xs text-on-surface-variant">{d.percentage}%</p>
-                                            </div>
+                {/* PieChart: Category Breakdown */}
+                <div className="p-8 rounded-xl bg-surface-container-lowest shadow-sm">
+                    <div className="mb-6">
+                        <h2 className="text-xl font-bold tracking-tight mb-1">Category Breakdown</h2>
+                        <p className="text-on-surface-variant text-sm">Monthly allocation</p>
+                    </div>
+                    {categoryLoading ? (
+                        <Skeleton className="h-52 w-full" />
+                    ) : (
+                        <div className="flex flex-col sm:flex-row items-center gap-6">
+                            <ResponsiveContainer width={180} height={180}>
+                                <PieChart>
+                                    <Pie data={categoryBreakdown} dataKey="value" nameKey="name"
+                                        cx="50%" cy="50%" innerRadius={50} outerRadius={80}
+                                        paddingAngle={3} strokeWidth={0}>
+                                        {categoryBreakdown?.map((_, i) => (
+                                            <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip content={<PieTooltip />} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                            <div className="flex-1 space-y-2">
+                                {categoryBreakdown?.slice(0, 4).map((d, i) => (
+                                    <div key={d.name} className="flex items-center justify-between text-xs">
+                                        <div className="flex items-center gap-2">
+                                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                                            <span className="font-bold text-on-surface opacity-80">{d.name}</span>
                                         </div>
-                                    ))}
-                                </div>
+                                        <span className="font-black text-on-surface">${d.value}</span>
+                                    </div>
+                                ))}
                             </div>
-                        )}
+                        </div>
+                    )}
+                </div>
+            </section>
+
+            {/* ── Payment Timeline Section ──────────────────────────────────── */}
+            <section ref={timelineRef} className="space-y-8">
+                <div className="flex items-end justify-between border-b border-outline-variant pb-4">
+                    <div>
+                        <h2 className="text-2xl font-black tracking-tight mb-1">Payment Timeline</h2>
+                        <p className="text-on-surface-variant text-sm font-medium">Smart financial classification</p>
                     </div>
                 </div>
 
-                {/* Right column: Timeline */}
-                <div className="p-8 rounded-xl bg-surface-container-low shadow-sm flex flex-col">
-                    <div className="mb-8">
-                        <h2 className="text-xl font-bold tracking-tight mb-1">Upcoming Renewals</h2>
-                        <p className="text-on-surface-variant text-sm">Don't get caught by surprise</p>
-                    </div>
-
-                    {upcomingLoading ? (
-                        <div className="space-y-6 flex-grow">
-                            {Array.from({ length: 4 }).map((_, i) => (
-                                <Skeleton key={i} className="h-16 w-full" />
-                            ))}
-                        </div>
-                    ) : upcoming?.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center flex-grow text-on-surface-variant">
-                            <span className="material-symbols-outlined text-5xl mb-3 opacity-30">event_available</span>
-                            <p className="font-medium text-sm">No upcoming renewals</p>
+                {/* 1. OVERDUE (Full Width) */}
+                <div className="p-8 rounded-2xl bg-error/5 border border-error/10">
+                    <h3 className="flex items-center gap-3 text-sm font-black uppercase tracking-widest text-error mb-6">
+                        <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+                        Overdue Payments
+                    </h3>
+                    {overdue.length === 0 ? (
+                        <div className="text-center py-6">
+                            <span className="material-symbols-outlined text-green-500 text-4xl mb-2">task_alt</span>
+                            <p className="text-on-surface-variant font-bold">No overdue payments ✅</p>
                         </div>
                     ) : (
-                        <div className="relative flex-grow pl-8 space-y-8">
-                            <div className="absolute left-[3px] top-2 bottom-2 w-0.5 bg-surface-container-highest rounded-full" />
-                            {upcoming?.map((sub, i) => (
-                                <TimelineItem key={sub._id} sub={sub} index={i} isLast={i === upcoming.length - 1} />
+                        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                            {overdue.slice(0, 5).map((item, index) => (
+                                <div key={index} className="flex items-center justify-between p-4 bg-white rounded-xl shadow-sm border border-error/20 hover:shadow-md transition-all">
+                                    <div className="flex items-center gap-4">
+                                        <div className="text-center w-12 py-1 bg-error/10 rounded-lg">
+                                            <div className="text-[10px] uppercase font-bold text-error opacity-70">
+                                                {dayjs(item.nextBillingDate).format('MMM')}
+                                            </div>
+                                            <div className="text-lg font-black text-error leading-none">
+                                                {dayjs(item.nextBillingDate).format('DD')}
+                                            </div>
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="font-bold text-on-surface text-sm line-clamp-1">{item.service}</span>
+                                            <span className="text-[10px] font-bold text-error uppercase">{dayjs(item.nextBillingDate).fromNow()}</span>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <span className="font-black text-error text-sm">₹{item.amount.toLocaleString('en-IN')}</span>
+                                        <button onClick={() => handleMarkPaid(item.id)}
+                                            className="w-8 h-8 rounded-full bg-error/10 flex items-center justify-center text-error hover:bg-error hover:text-white transition-all shadow-sm">
+                                            <span className="material-symbols-outlined text-sm">check</span>
+                                        </button>
+                                    </div>
+                                </div>
                             ))}
                         </div>
                     )}
+                    {overdue.length > 5 && (
+                        <div className="mt-6 text-center">
+                            <a href="/subscriptions" className="text-xs font-bold text-error uppercase tracking-widest hover:underline">View All Overdue</a>
+                        </div>
+                    )}
+                </div>
 
-                    <a href="/subscriptions"
-                        className="mt-10 w-full py-4 border-2 border-primary/20 rounded-full font-bold text-primary hover:bg-primary/5 transition-all text-center block">
-                        View All Subscriptions
-                    </a>
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    {/* 2. DUE SOON (Column) */}
+                    <div className="p-8 rounded-2xl bg-surface-container-low shadow-sm border border-outline-variant/30">
+                        <h3 className="flex items-center gap-3 text-sm font-black uppercase tracking-widest text-tertiary mb-6">
+                            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>schedule</span>
+                            Due Soon
+                        </h3>
+                        <div className="space-y-4">
+                            {dueSoon.length === 0 ? (
+                                <p className="text-sm text-center py-10 text-on-surface-variant font-medium italic">Nothing due soon</p>
+                            ) : (
+                                <>
+                                    {dueSoon.slice(0, 5).map((item, index) => (
+                                        <div key={index} className="flex items-center justify-between p-4 bg-white/50 rounded-xl border border-tertiary/10 hover:shadow-md transition-all">
+                                            <div className="flex items-center gap-4">
+                                                <div className="text-center w-12 py-1 bg-tertiary/10 rounded-lg">
+                                                    <div className="text-[10px] uppercase font-bold text-tertiary opacity-70">
+                                                        {dayjs(item.nextBillingDate).format('MMM')}
+                                                    </div>
+                                                    <div className="text-lg font-black text-tertiary leading-none">
+                                                        {dayjs(item.nextBillingDate).format('DD')}
+                                                    </div>
+                                                </div>
+                                                <span className="font-bold text-on-surface text-sm line-clamp-1">{item.service}</span>
+                                            </div>
+                                            <div className="flex items-center gap-3">
+                                                <span className="font-black text-tertiary text-sm">₹{item.amount.toLocaleString('en-IN')}</span>
+                                                <button onClick={() => handleMarkPaid(item.id)}
+                                                    className="w-8 h-8 rounded-full bg-tertiary/10 flex items-center justify-center text-tertiary hover:bg-tertiary hover:text-white transition-all shadow-sm">
+                                                    <span className="material-symbols-outlined text-sm">check</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                    {dueSoon.length > 5 && (
+                                        <div className="pt-2 text-center">
+                                            <a href="/subscriptions" className="text-[10px] font-black text-tertiary uppercase tracking-widest hover:underline">View More</a>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 3. UPCOMING (Column) */}
+                    <div className="p-8 rounded-2xl bg-surface-container-low shadow-sm border border-outline-variant/30">
+                        <h3 className="flex items-center gap-3 text-sm font-black uppercase tracking-widest text-primary mb-6">
+                            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>event_repeat</span>
+                            Upcoming
+                        </h3>
+                        <div className="space-y-4">
+                            {upcoming.length === 0 ? (
+                                <p className="text-sm text-center py-10 text-on-surface-variant font-medium italic">No upcoming payments</p>
+                            ) : (
+                                <>
+                                    {upcoming.slice(0, 5).map((item, index) => (
+                                        <div key={index} className="flex items-center justify-between p-4 bg-white/50 rounded-xl border border-primary/10 hover:shadow-md transition-all">
+                                            <div className="flex items-center gap-4">
+                                                <div className="text-center w-12 py-1 bg-primary/5 rounded-lg">
+                                                    <div className="text-[10px] uppercase font-bold text-primary opacity-70">
+                                                        {dayjs(item.nextBillingDate).format('MMM')}
+                                                    </div>
+                                                    <div className="text-lg font-black text-primary leading-none">
+                                                        {dayjs(item.nextBillingDate).format('DD')}
+                                                    </div>
+                                                </div>
+                                                <span className="font-bold text-on-surface text-sm line-clamp-1">{item.service}</span>
+                                            </div>
+                                            <span className="font-black text-on-surface text-sm opacity-80">₹{item.amount.toLocaleString('en-IN')}</span>
+                                        </div>
+                                    ))}
+                                    {upcoming.length > 5 && (
+                                        <div className="pt-2 text-center">
+                                            <a href="/subscriptions" className="text-[10px] font-black text-primary uppercase tracking-widest hover:underline">View All Upcoming</a>
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </section>
 

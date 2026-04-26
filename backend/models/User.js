@@ -9,6 +9,7 @@ const UserSchema = new mongoose.Schema({
   phoneNumber: { type: String },
   timezone: { type: String, default: 'UTC' },
   name: { type: String },
+  lastGmailSync: { type: Date },
   preferences: {
     notifyViaEmail:        { type: Boolean, default: true   },
     alertDaysBefore:       { type: Number,  default: 3      },

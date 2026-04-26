@@ -59,6 +59,12 @@ export const fetchSpendingHistory = (userId) =>
 export const fetchCategoryBreakdown = (userId) =>
     apiFetch(`/subscriptions/${userId}/category-breakdown`);
 
+export const fetchInsights = () =>
+    apiFetch('/subscriptions/insights');
+
+export const fetchUpcomingTimeline = () =>
+    apiFetch('/subscriptions/upcoming');
+
 // ─── Subscriptions: Mutations ─────────────────────────────────────────────────
 export const addSubscription = (userId, data) =>
     apiFetch('/subscriptions', { method: 'POST', body: { ...data, userId } });
@@ -72,6 +78,9 @@ export const updateSubscriptionStatus = (id, status) =>
 export const paySubscription = (id) =>
     apiFetch(`/subscriptions/${id}/pay`, { method: 'PUT' });
 
+export const ignoreSubscription = (id) =>
+    apiFetch(`/subscriptions/${id}/ignore`, { method: 'PATCH' });
+
 export const deleteSubscription = (id) =>
     apiFetch(`/subscriptions/${id}`, { method: 'DELETE' });
 
@@ -84,3 +93,6 @@ export const googleLoginApi = async (googleToken) => {
     if (!res.ok) throw new Error('Google login failed');
     return res.json();
 };
+
+export const syncFromGmail = (userId, accessToken) =>
+    apiFetch('/subscriptions/sync-gmail', { method: 'POST', body: { userId, accessToken } });
