@@ -168,6 +168,94 @@ async function syncFromGmail(accessToken, userId) {
   return suggestions;
 }
 
+/**
+ * Automatically fetch a fresh access token using a refresh token and run sync.
+ */
+async function runBackgroundSync(userId) {
+  const User = require('../models/User');
+  const Subscription = require('../models/Subscription');
+  const user = await User.findById(userId);
+
+  if (!user || !user.googleRefreshToken) {
+    console.log(`[BACKGROUND SYNC] Skipped for user ${userId} - No refresh token.`);
+    return;
+  }
+
+  try {
+    const auth = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID?.trim(),
+      process.env.GOOGLE_CLIENT_SECRET?.trim()
+    );
+
+    auth.setCredentials({ refresh_token: user.googleRefreshToken });
+    
+    // This automatically fetches a new access token
+    const { token } = await auth.getAccessToken();
+
+    if (!token) {
+      console.log(`[BACKGROUND SYNC] Failed to get access token for user ${userId}`);
+      return;
+    }
+
+    console.log(`[BACKGROUND SYNC] Running sync for user ${userId}...`);
+    const detected = await syncFromGmail(token, userId);
+
+    user.lastGmailSync = new Date();
+    await user.save();
+
+    let newCount = 0;
+    for (const item of detected) {
+        if (item.emailId) {
+            const existsByEmail = await Subscription.findOne({ emailId: item.emailId });
+            if (existsByEmail) continue;
+        }
+
+        const serviceName = item.serviceName || item.service;
+        if (!serviceName || typeof serviceName !== "string") continue;
+
+        const amount = Number(item.cost || item.amount);
+        if (isNaN(amount) || amount <= 0) continue;
+
+        const date = new Date(item.nextBillingDate);
+        if (isNaN(date.getTime())) continue;
+
+        const exists = await Subscription.findOne({
+            userId,
+            serviceName: serviceName,
+            cost: amount,
+            nextBillingDate: {
+                $gte: new Date(date.getTime() - 3 * 86400000),
+                $lte: new Date(date.getTime() + 3 * 86400000)
+            }
+        });
+
+        if (exists) continue;
+
+        const sub = new Subscription({
+            ...item,
+            userId,
+            serviceName: serviceName,
+            cost: amount,
+            nextBillingDate: date,
+            status: "SUGGESTED",
+            userEmail: user.email,
+            userPhone: user.phoneNumber,
+            userTimezone: user.timezone,
+            notifyViaEmail: user.preferences?.notifyViaEmail,
+            notifyViaWhatsApp: user.preferences?.notifyViaWhatsApp
+        });
+
+        await sub.save();
+        newCount++;
+    }
+
+    console.log(`[BACKGROUND SYNC] Finished for user ${userId}. Added ${newCount} new subscriptions.`);
+  } catch (err) {
+    console.error(`[BACKGROUND SYNC] Error for user ${userId}:`, err.message);
+  }
+}
+
 module.exports = {
-  syncFromGmail
+  syncFromGmail,
+  runBackgroundSync
 };

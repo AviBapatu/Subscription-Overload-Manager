@@ -6,7 +6,7 @@ import {
 } from 'recharts';
 import dayjs from 'dayjs';
 import relativeTime from 'dayjs/plugin/relativeTime';
-import { fetchStats, fetchUpcoming, fetchSpendingHistory, fetchCategoryBreakdown, syncFromGmail, fetchInsights, fetchUpcomingTimeline, paySubscription } from '../lib/api';
+import { fetchStats, fetchUpcoming, fetchSpendingHistory, fetchCategoryBreakdown, setupAutoSync, syncFromGmail, fetchInsights, fetchUpcomingTimeline, paySubscription } from '../lib/api';
 import { useAuth } from '../lib/AuthContext';
 import { useGoogleLogin } from '@react-oauth/google';
 
@@ -100,20 +100,22 @@ const Dashboard = () => {
     };
 
     const gmailLogin = useGoogleLogin({
-        onSuccess: async (tokenResponse) => {
+        flow: 'auth-code',
+        onSuccess: async (codeResponse) => {
             setIsSyncing(true);
             try {
-                const res = await syncFromGmail(userId, tokenResponse.access_token);
-                console.log('Sync Response:', res);
-                const count = Array.isArray(res) ? res.length : (res.data?.length || 0);
-                alert(`Sync complete! Found ${count} subscriptions.`);
+                // Now we send the auth code to the backend instead of the access token
+                const res = await setupAutoSync(userId, codeResponse.code);
+                console.log('Auto Sync Setup Response:', res);
+                const count = Array.isArray(res.saved) ? res.saved.length : 0;
+                alert(`Background Sync enabled! Found ${count} new subscriptions.`);
                 queryClient.invalidateQueries(['subscriptions']);
                 queryClient.invalidateQueries(['stats']);
                 queryClient.invalidateQueries(['insights']);
                 queryClient.invalidateQueries(['upcomingTimeline']);
             } catch (err) {
-                console.error('Sync failed:', err);
-                alert('Could not sync Gmail. Try again later.');
+                console.error('Auto sync setup failed:', err);
+                alert('Could not configure auto-sync. Try again later.');
             } finally {
                 setIsSyncing(false);
             }
@@ -234,7 +236,7 @@ const Dashboard = () => {
                             disabled={isSyncing}
                             className="bg-surface-container-highest px-8 py-4 rounded-full font-bold hover:bg-surface-container-high transition-all text-on-surface flex items-center gap-2">
                             <span className="material-symbols-outlined">{isSyncing ? 'sync' : 'auto_awesome'}</span>
-                            {isSyncing ? 'Scanning Gmail...' : 'Scan Gmail'}
+                            {isSyncing ? 'Scanning Gmail...' : 'Enable Auto-Scan'}
                         </button>
                         <a href="/subscriptions"
                             className="bg-primary text-on-primary px-8 py-4 rounded-full font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all">

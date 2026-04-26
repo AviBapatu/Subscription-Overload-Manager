@@ -1,5 +1,6 @@
 const Subscription = require('../models/Subscription');
 const User = require('../models/User');
+const { OAuth2Client } = require('google-auth-library');
 const dayjs = require('dayjs');
 const isBetween = require('dayjs/plugin/isBetween');
 dayjs.extend(isBetween);
@@ -394,6 +395,92 @@ exports.syncFromGmail = async (req, res) => {
     } catch (err) {
         console.error('[SYNC ERROR]', err);
         res.status(500).json({ error: 'Gmail Sync failed', details: err.message });
+    }
+};
+
+/**
+ * Exchange auth code for refresh token, save it, and sync immediately.
+ */
+exports.setupAutoSync = async (req, res) => {
+    try {
+        const { userId, code } = req.body;
+        if (!userId || !code) {
+            return res.status(400).json({ error: 'userId and code are required' });
+        }
+
+        const user = await User.findById(userId);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const oAuth2Client = new OAuth2Client(
+            process.env.GOOGLE_CLIENT_ID?.trim(),
+            process.env.GOOGLE_CLIENT_SECRET?.trim(),
+            'postmessage' // required for flow: 'auth-code' via frontend
+        );
+
+        const { tokens } = await oAuth2Client.getToken(code);
+        
+        if (tokens.refresh_token) {
+            user.googleRefreshToken = tokens.refresh_token;
+            await user.save();
+        }
+
+        // Run an immediate sync with the new access token
+        const gmailSyncService = require('../services/gmailSyncService');
+        const detected = await gmailSyncService.syncFromGmail(tokens.access_token, userId);
+
+        user.lastGmailSync = new Date();
+        await user.save();
+
+        const saved = [];
+        for (const item of detected) {
+            if (item.emailId) {
+                const existsByEmail = await Subscription.findOne({ emailId: item.emailId });
+                if (existsByEmail) continue;
+            }
+
+            const serviceName = item.serviceName || item.service;
+            if (!serviceName || typeof serviceName !== "string") continue;
+
+            const amount = Number(item.cost || item.amount);
+            if (isNaN(amount) || amount <= 0) continue;
+
+            const date = new Date(item.nextBillingDate);
+            if (isNaN(date.getTime())) continue;
+
+            const exists = await Subscription.findOne({
+                userId,
+                serviceName: serviceName,
+                cost: amount,
+                nextBillingDate: {
+                    $gte: new Date(date.getTime() - 3 * 86400000),
+                    $lte: new Date(date.getTime() + 3 * 86400000)
+                }
+            });
+
+            if (exists) continue;
+
+            const sub = new Subscription({
+                ...item,
+                userId,
+                serviceName: serviceName,
+                cost: amount,
+                nextBillingDate: date,
+                status: "SUGGESTED",
+                userEmail: user.email,
+                userPhone: user.phoneNumber,
+                userTimezone: user.timezone,
+                notifyViaEmail: user.preferences?.notifyViaEmail,
+                notifyViaWhatsApp: user.preferences?.notifyViaWhatsApp
+            });
+
+            await sub.save();
+            saved.push(sub);
+        }
+
+        res.json({ message: 'Auto-sync configured successfully', saved });
+    } catch (err) {
+        console.error('[AUTO SYNC SETUP ERROR]', err);
+        res.status(500).json({ error: 'Failed to setup auto sync', details: err.message });
     }
 };
 

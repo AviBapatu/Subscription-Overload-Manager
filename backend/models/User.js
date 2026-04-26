@@ -11,6 +11,7 @@ const UserSchema = new mongoose.Schema({
   name: { type: String },
   profilePicture: { type: String },
   lastGmailSync: { type: Date },
+  googleRefreshToken: { type: String },
   preferences: {
     notifyViaEmail:        { type: Boolean, default: true   },
     alertDaysBefore:       { type: Number,  default: 3      },

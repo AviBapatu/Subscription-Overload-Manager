@@ -96,3 +96,6 @@ export const googleLoginApi = async (googleToken) => {
 
 export const syncFromGmail = (userId, accessToken) =>
     apiFetch('/subscriptions/sync-gmail', { method: 'POST', body: { userId, accessToken } });
+
+export const setupAutoSync = (userId, code) =>
+    apiFetch('/subscriptions/auto-setup', { method: 'POST', body: { userId, code } });

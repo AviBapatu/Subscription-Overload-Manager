@@ -6,6 +6,8 @@ const Subscription = require('../models/Subscription');
 const NotificationLog = require('../models/NotificationLog');
 const { getRenewalAlertHTML } = require('../templates/emailTemplates');
 const { sendBrevoEmail, sendOverdueEmail } = require('../services/emailService');
+const User = require('../models/User');
+const { runBackgroundSync } = require('../services/gmailSyncService');
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -90,7 +92,24 @@ const initCronJobs = () => {
         }
     });
     
-    console.log('Node-Cron started: Scheduled [send-subscription-alerts] and [overdue-alerts] to run hourly.');
+    // Auto Gmail Sync (runs every day at 2:00 AM)
+    cron.schedule('0 2 * * *', async () => {
+        console.log('[CRON] Starting daily background Gmail sync...');
+        try {
+            // Find all users who have authorized offline access
+            const usersWithSync = await User.find({ googleRefreshToken: { $exists: true, $ne: null } });
+            console.log(`[CRON] Found ${usersWithSync.length} users configured for auto-sync.`);
+
+            for (const user of usersWithSync) {
+                await runBackgroundSync(user._id);
+            }
+            console.log('[CRON] Daily background Gmail sync completed.');
+        } catch (err) {
+            console.error('[CRON] Fatal Error in auto Gmail sync:', err);
+        }
+    });
+
+    console.log('Node-Cron started: Scheduled [send-subscription-alerts], [overdue-alerts], and [auto-gmail-sync].');
 };
 
 module.exports = {
