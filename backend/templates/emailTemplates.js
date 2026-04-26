@@ -315,6 +315,14 @@ const getOverdueAlertHTML = (sub) => {
 
 /* ─── Exports ──────────────────────────────────────────────────────────────── */
 module.exports = {
+    getRenewalAlertHTML,
+    getOtpEmailHTML,
+    getFreeTrialEndingHTML,
+    getFailedPaymentHTML,
+    getPriceIncreaseHTML,
+    getWeeklySummaryHTML,
+    getBudgetAlertHTML,
+    getNewSubscriptionHTML,
     getOverdueAlertHTML,
     getDueSoonAlertHTML: (sub) => {
         const body = `
@@ -344,5 +352,5 @@ module.exports = {
           <a class="btn" href="#" style="background:#E74C3C;">Resolve Now →</a>
         </div>`;
         return wrap('#E74C3C', '⚠️', `⚠️ URGENT: ${sub.serviceName} Payment Pending`, body);
-    }
+    },
 };
