@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
-const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID?.trim());
 const User = require('../models/User');
 const crypto = require('crypto');
 const OtpToken = require('../models/OtpToken');
@@ -112,12 +112,13 @@ exports.googleLogin = async (req, res) => {
     const { token } = req.body;
     if (!token) return res.status(400).json({ error: 'Google token is required' });
     try {
+        const clientId = process.env.GOOGLE_CLIENT_ID?.trim();
         const ticket = await googleClient.verifyIdToken({
             idToken: token,
-            audience: process.env.GOOGLE_CLIENT_ID,
+            audience: clientId,
         });
         const payload = ticket.getPayload();
-        const { email, name, sub: googleId } = payload;
+        const { email, name, sub: googleId, picture } = payload;
 
         let user = await User.findOne({ email });
         if (!user) {
@@ -126,11 +127,20 @@ exports.googleLogin = async (req, res) => {
                 name,
                 googleId,
                 authProvider: 'google',
+                profilePicture: picture,
             });
-        } else if (!user.googleId) {
-            user.googleId = googleId;
-            user.authProvider = 'google';
-            await user.save();
+        } else {
+            let updated = false;
+            if (!user.googleId) {
+                user.googleId = googleId;
+                user.authProvider = 'google';
+                updated = true;
+            }
+            if (picture && user.profilePicture !== picture) {
+                user.profilePicture = picture;
+                updated = true;
+            }
+            if (updated) await user.save();
         }
 
         const appToken = jwt.sign(
@@ -149,6 +159,7 @@ exports.googleLogin = async (req, res) => {
                 timezone: user.timezone,
                 preferences: user.preferences,
                 authProvider: user.authProvider,
+                profilePicture: user.profilePicture,
             }
         });
     } catch (err) {

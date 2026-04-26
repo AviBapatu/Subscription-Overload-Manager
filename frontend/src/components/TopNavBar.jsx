@@ -56,7 +56,11 @@ const TopNavBar = () => {
                     <div className="flex items-center gap-3">
                         <Link to="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                             <div className="w-10 h-10 rounded-full bg-surface-container-high border-2 border-surface-container-lowest shadow-sm overflow-hidden flex items-center justify-center bg-primary/10 text-primary font-black">
-                                {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                                {user?.profilePicture ? (
+                                    <img src={user.profilePicture} alt={user.name || "User"} className="w-full h-full object-cover" />
+                                ) : (
+                                    user?.name ? user.name.charAt(0).toUpperCase() : 'U'
+                                )}
                             </div>
                             <span className="text-sm font-bold hidden lg:block text-on-surface">{user?.name || 'User'}</span>
                         </Link>

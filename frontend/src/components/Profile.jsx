@@ -234,8 +234,12 @@ const Profile = () => {
                         <div className="absolute inset-0 bg-white/10 mix-blend-overlay" />
                     </div>
                     <div className="px-8 pb-8 flex flex-col md:flex-row items-end gap-6 -mt-14 relative z-10">
-                        <div className="w-28 h-28 md:w-36 md:h-36 rounded-2xl border-4 border-white shadow-xl bg-surface-container-highest flex items-center justify-center text-5xl font-black text-on-surface-variant shrink-0">
-                            {user?.name ? user.name.charAt(0).toUpperCase() : 'U'}
+                        <div className="w-28 h-28 md:w-36 md:h-36 rounded-2xl border-4 border-white shadow-xl bg-surface-container-highest flex items-center justify-center text-5xl font-black text-on-surface-variant shrink-0 overflow-hidden">
+                            {user?.profilePicture ? (
+                                <img src={user.profilePicture} alt={user.name || "User"} className="w-full h-full object-cover" />
+                            ) : (
+                                user?.name ? user.name.charAt(0).toUpperCase() : 'U'
+                            )}
                         </div>
                         <div className="flex-1 pb-1">
                             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-on-surface">{user?.name || 'User'}</h1>
