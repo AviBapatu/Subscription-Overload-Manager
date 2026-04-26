@@ -7,7 +7,7 @@ const UserSchema = new mongoose.Schema({
   googleId: { type: String },
   authProvider: { type: String, default: 'local' },
   phoneNumber: { type: String },
-  timezone: { type: String, default: 'UTC' },
+  timezone: { type: String, default: 'Asia/Kolkata' },
   name: { type: String },
   profilePicture: { type: String },
   lastGmailSync: { type: Date },

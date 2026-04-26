@@ -18,6 +18,9 @@ const { runBackgroundSync } = require('../services/gmailSyncService');
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
+// Indian Standard Time — all cron schedules are expressed in IST
+const IST_TZ = 'Asia/Kolkata';
+
 // ─── Helper: compute monthly-equivalent spend for a subscription ──────────────
 const toMonthly = (sub) => {
     if (sub.billingCycle === 'YEARLY')  return sub.cost / 12;
@@ -49,7 +52,7 @@ const runSubscriptionAlerts = async () => {
         const subscriptions = await Subscription.find({ alertDate: today, status: 'ACTIVE' });
 
         for (const sub of subscriptions) {
-            const userLocalNow = dayjs().tz(sub.userTimezone || 'UTC');
+            const userLocalNow = dayjs().tz(sub.userTimezone || IST_TZ);
             if (userLocalNow.hour() !== 0) continue;
 
             if (!sub.notifyViaEmail || !sub.userEmail) continue;
@@ -264,25 +267,25 @@ const isInQuietHours = (user) => {
  *  Bootstrap — register all cron jobs
  * ═══════════════════════════════════════════════════════════════════════════ */
 const initCronJobs = () => {
-    // JOB 1 — Renewal alerts (every hour; fires only at midnight local time)
-    cron.schedule('0 * * * *', runSubscriptionAlerts);
+    // JOB 1 — Renewal alerts (every hour; fires only at midnight IST)
+    cron.schedule('0 * * * *', runSubscriptionAlerts, { timezone: IST_TZ });
 
-    // JOB 2 — Overdue alerts (every hour; one-shot per subscription via overdueNotified flag)
-    cron.schedule('0 * * * *', runOverdueAlerts);
+    // JOB 2 — Overdue alerts (every hour)
+    cron.schedule('0 * * * *', runOverdueAlerts, { timezone: IST_TZ });
 
-    // JOB 3 — Free trial ending alerts (daily at 09:00 UTC)
-    cron.schedule('0 9 * * *', runFreeTrialAlerts);
+    // JOB 3 — Free trial ending alerts (daily at 09:00 IST)
+    cron.schedule('0 9 * * *', runFreeTrialAlerts, { timezone: IST_TZ });
 
-    // JOB 4 — Weekly summary digest (every Sunday at 08:00 UTC)
-    cron.schedule('0 8 * * 0', runWeeklySummary);
+    // JOB 4 — Weekly summary digest (every Sunday at 08:00 IST)
+    cron.schedule('0 8 * * 0', runWeeklySummary, { timezone: IST_TZ });
 
-    // JOB 5 — Budget 80% threshold alert (daily at 10:00 UTC)
-    cron.schedule('0 10 * * *', runBudgetAlerts);
+    // JOB 5 — Budget 80% threshold alert (daily at 10:00 IST)
+    cron.schedule('0 10 * * *', runBudgetAlerts, { timezone: IST_TZ });
 
-    // JOB 6 — Auto Gmail sync (daily at 02:00 UTC)
-    cron.schedule('0 2 * * *', runDailyGmailSync);
+    // JOB 6 — Auto Gmail sync (daily at 02:00 IST)
+    cron.schedule('0 2 * * *', runDailyGmailSync, { timezone: IST_TZ });
 
-    console.log('[CRON] Started 6 jobs: renewal-alerts, overdue-alerts, free-trial-alerts, weekly-summary, budget-alerts, gmail-sync.');
+    console.log(`[CRON] Started 6 jobs in ${IST_TZ}: renewal-alerts, overdue-alerts, free-trial-alerts, weekly-summary, budget-alerts, gmail-sync.`);
 };
 
 module.exports = { initCronJobs, runSubscriptionAlerts };
