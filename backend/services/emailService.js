@@ -1,4 +1,4 @@
-const { BrevoClient } = require('@getbrevo/brevo');
+const nodemailer = require('nodemailer');
 const {
     getRenewalAlertHTML,
     getOtpEmailHTML,
@@ -10,23 +10,32 @@ const {
     getNewSubscriptionHTML,
 } = require('../templates/emailTemplates');
 
-const client = new BrevoClient({ apiKey: process.env.BREVO_API_KEY });
-const SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL || 'noreply@subscriptionconcierge.com';
+const SENDER_EMAIL = process.env.GMAIL_USER;
+const SENDER_NAME  = 'Subscription Concierge';
 
-/* ─── Core Brevo dispatch ─────────────────────────────────────────────────── */
+/* ─── Gmail SMTP transporter ─────────────────────────────────────────────── */
+const transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_APP_PASSWORD,   // Gmail App Password (16 chars, no spaces)
+    },
+});
+
+/* ─── Core send function ─────────────────────────────────────────────────── */
 const sendBrevoEmail = async (to, subject, htmlContent) => {
     try {
-        const data = await client.transactionalEmails.sendTransacEmail({
+        const info = await transporter.sendMail({
+            from: `"${SENDER_NAME}" <${SENDER_EMAIL}>`,
+            to,
             subject,
-            htmlContent,
-            sender: { name: 'Subscription Concierge', email: SENDER_EMAIL },
-            to: [{ email: to }],
-            replyTo: { email: SENDER_EMAIL, name: 'Subscription Concierge' },
+            html: htmlContent,
+            replyTo: SENDER_EMAIL,
         });
-        console.log(`[BREVO] ✓ Sent "${subject}" to ${to}. ID: ${data.messageId}`);
-        return data;
+        console.log(`[MAIL] ✓ Sent "${subject}" to ${to}. ID: ${info.messageId}`);
+        return info;
     } catch (err) {
-        console.error(`[BREVO] ✗ Failed to send to ${to}:`, err.response?.text || err.message);
+        console.error(`[MAIL] ✗ Failed to send to ${to}:`, err.message);
         throw err;
     }
 };
