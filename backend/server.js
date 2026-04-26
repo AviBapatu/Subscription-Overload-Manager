@@ -22,6 +22,12 @@ app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/users', require('./routes/users'));
 app.post('/api/users/google', require('./controllers/userController').googleLogin);
 
+// Dev-only — email + cron job manual trigger routes
+if (process.env.NODE_ENV !== 'production') {
+    app.use('/api/test', require('./routes/testEmails'));
+    console.log('[DEV] Test routes mounted at /api/test');
+}
+
 // Health check
 app.get('/health', (req, res) => res.json({ status: 'ok', time: new Date() }));
 

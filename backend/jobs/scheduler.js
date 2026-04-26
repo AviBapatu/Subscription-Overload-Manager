@@ -288,4 +288,12 @@ const initCronJobs = () => {
     console.log(`[CRON] Started 6 jobs in ${IST_TZ}: renewal-alerts, overdue-alerts, free-trial-alerts, weekly-summary, budget-alerts, gmail-sync.`);
 };
 
-module.exports = { initCronJobs, runSubscriptionAlerts };
+module.exports = {
+    initCronJobs,
+    runSubscriptionAlerts,
+    runOverdueAlerts,
+    runFreeTrialAlerts,
+    runWeeklySummary,
+    runBudgetAlerts,
+    runDailyGmailSync,
+};
