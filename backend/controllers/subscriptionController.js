@@ -5,6 +5,11 @@ const dayjs = require('dayjs');
 const isBetween = require('dayjs/plugin/isBetween');
 dayjs.extend(isBetween);
 
+const {
+    sendNewSubscriptionAlert,
+    sendPriceIncreaseAlert,
+} = require('../services/emailService');
+
 // ─────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────
@@ -185,6 +190,14 @@ exports.createSubscription = async (req, res) => {
         });
 
         await newSub.save();
+
+        // Fire "new subscription added" alert if the user opted in
+        if (user.preferences?.budgetAlertOnNew && user.preferences?.notifyViaEmail) {
+            sendNewSubscriptionAlert(user.email, user.name, newSub).catch(err =>
+                console.error('[EMAIL] sendNewSubscriptionAlert failed:', err.message)
+            );
+        }
+
         res.status(201).json(newSub);
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -201,6 +214,9 @@ exports.updateSubscription = async (req, res) => {
         const user = await User.findById(sub.userId);
         const alertDays = user?.preferences?.alertDaysBefore || 3;
 
+        // Track old cost before overwriting
+        const oldCost = sub.cost;
+
         if (serviceName) sub.serviceName = serviceName;
         if (cost !== undefined) sub.cost = parseFloat(cost);
         if (billingCycle) sub.billingCycle = billingCycle;
@@ -210,7 +226,26 @@ exports.updateSubscription = async (req, res) => {
             sub.alertDate = dayjs(nextBillingDate).subtract(alertDays, 'day').startOf('day').toDate();
         }
 
+        // If cost increased, store previousCost for audit
+        if (cost !== undefined && parseFloat(cost) > oldCost) {
+            sub.previousCost = oldCost;
+        }
+
         await sub.save();
+
+        // Fire price-increase alert if cost went up and user opted in
+        if (
+            cost !== undefined &&
+            parseFloat(cost) > oldCost &&
+            user?.preferences?.notifPriceIncreases &&
+            user?.preferences?.notifyViaEmail
+        ) {
+            sendPriceIncreaseAlert(
+                user.email, sub, oldCost, parseFloat(cost),
+                nextBillingDate || sub.nextBillingDate
+            ).catch(err => console.error('[EMAIL] sendPriceIncreaseAlert failed:', err.message));
+        }
+
         res.json(sub);
     } catch (err) {
         res.status(500).json({ error: err.message });

@@ -29,7 +29,14 @@ const SubscriptionSchema = new mongoose.Schema({
     notifyViaWhatsApp: { type: Boolean },
     overdueNotified: { type: Boolean, default: false },
     lastReminderSentAt: { type: Date },
-    reminderCount: { type: Number, default: 0 }
+    reminderCount: { type: Number, default: 0 },
+
+    // Free trial support
+    trialEndsAt: { type: Date, default: null },        // set if this is a free trial
+    trialAlertSent: { type: Boolean, default: false }, // prevent duplicate trial alerts
+
+    // Price change tracking
+    previousCost: { type: Number, default: null }      // set when cost is updated
 }, { timestamps: true });
 
 // Index for daily cron scan efficiency
