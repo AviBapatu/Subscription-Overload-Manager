@@ -36,6 +36,26 @@ const SettingsPanels = ({
 }) => (
     <div className="lg:col-span-9 flex flex-col gap-8">
 
+        {/* 0. Profile Overview */}
+        <div className="bg-surface-container-lowest rounded-2xl p-8 md:p-10 shadow-sm border border-outline-variant/10 scroll-mt-28">
+            <div className="flex items-center gap-6">
+                <div className="w-20 h-20 rounded-xl bg-surface-container-highest flex items-center justify-center text-3xl font-black text-on-surface-variant shrink-0 overflow-hidden">
+                    {user?.profilePicture ? (
+                        <img src={user.profilePicture} alt={user.name || 'User'} className="w-full h-full object-cover" />
+                    ) : (
+                        user?.name ? user.name.charAt(0).toUpperCase() : 'U'
+                    )}
+                </div>
+                <div className="flex-1">
+                    <h1 className="text-xl font-bold text-on-surface">{user?.name || 'User'}</h1>
+                    <p className="text-sm font-medium text-on-surface-variant">{user?.email}</p>
+                    <p className="text-xs font-semibold text-outline-variant mt-1 uppercase tracking-wider">
+                        Member since {dayjs(user?.createdAt || Date.now()).format('MMMM YYYY')}
+                    </p>
+                </div>
+            </div>
+        </div>
+
         {/* 1. Notification Channels */}
         <SettingsCard id="channels" icon="notifications_active" title="Alert Preferences" subtitle="Manage how and when we notify you">
             <PrefRow title="Email Alerts" subtitle={`Billing alerts sent to ${user?.email}`}>
@@ -165,6 +185,9 @@ const SettingsPanels = ({
                     </label>
                 </div>
             )}
+            <div className="pt-4 mt-4 border-t border-outline-variant/10">
+                <span className="text-sm text-on-surface-variant">All times are based on your timezone: <strong className="text-on-surface">{user?.timezone === 'Asia/Kolkata' ? 'IST' : (user?.timezone || 'IST')}</strong></span>
+            </div>
         </SettingsCard>
 
         {/* 5. Weekly Summary */}
@@ -228,16 +251,6 @@ const SettingsPanels = ({
             </div>
         </SettingsCard>
 
-        {/* 8. Advanced */}
-        <SettingsCard id="advanced" icon="settings_suggest" title="Advanced" subtitle="Fine-grained controls for power users">
-            <PrefRow title="Per-Subscription Overrides" subtitle="Allow custom reminder settings for individual subscriptions like Netflix or Spotify">
-                <Toggle checked={!!prefs.perSubOverrides} onChange={() => toggle('perSubOverrides')} />
-            </PrefRow>
-            <div className="pt-6 border-t border-outline-variant/10">
-                <span className="text-sm font-semibold text-on-surface-variant block mb-1">Timezone</span>
-                <p className="text-sm text-on-surface-variant">Alerts dispatched at 12:00 AM in: <strong className="text-on-surface">{user?.timezone || 'UTC'}</strong></p>
-            </div>
-        </SettingsCard>
 
         {/* Danger Zone */}
         <div className="bg-error/5 border border-error/20 rounded-2xl p-8 md:p-10">

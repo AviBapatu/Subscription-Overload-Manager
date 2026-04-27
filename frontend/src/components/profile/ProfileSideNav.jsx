@@ -8,7 +8,6 @@ export const NAV_SECTIONS = [
     { id: 'summary',     icon: 'summarize',             label: 'Weekly Summary' },
     { id: 'budget',      icon: 'savings',               label: 'Budget Alerts' },
     { id: 'snooze',      icon: 'snooze',                label: 'Snooze & Test' },
-    { id: 'advanced',    icon: 'settings_suggest',      label: 'Advanced' },
 ];
 
 /**
@@ -33,13 +32,6 @@ const ProfileSideNav = ({ activeSection }) => (
                 </a>
             );
         })}
-
-        {/* Upsell card */}
-        <div className="mt-6 p-5 bg-gradient-to-br from-secondary to-primary-dim rounded-2xl text-white flex flex-col gap-3 shadow-lg shadow-blue-500/10">
-            <p className="font-bold leading-tight">Upgrade to Premium</p>
-            <p className="text-xs text-white/80">Advanced analytics & family sharing.</p>
-            <button className="w-full py-2 bg-white text-primary font-bold rounded-xl text-sm hover:scale-[1.02] transition-transform">Learn More</button>
-        </div>
     </div>
 );
 
