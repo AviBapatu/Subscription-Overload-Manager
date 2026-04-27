@@ -225,7 +225,16 @@ exports.forgotPassword = async (req, res) => {
 
         const user = await User.findOne({ email: email.trim().toLowerCase() });
         if (!user) {
+            // Generic response — don't reveal whether the email exists
             return res.status(200).json({ message: 'If that email exists, an OTP has been sent.' });
+        }
+
+        // Google accounts should sign in via Google, even if they have an old password hash
+        if (user.authProvider === 'google') {
+            return res.status(400).json({
+                error: 'This account uses Google Sign-In. Please sign in with Google — no password is needed.',
+                authProvider: 'google',
+            });
         }
 
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -243,6 +252,7 @@ exports.forgotPassword = async (req, res) => {
         res.status(200).json({ message: 'OTP sent successfully' });
     } catch (err) {
         res.status(500).json({ error: err.message });
+
     }
 };
 
@@ -251,22 +261,46 @@ exports.verifyOtp = async (req, res) => {
         const { email, otp } = req.body;
         if (!email || !otp) return res.status(400).json({ error: 'Email and OTP are required' });
 
-        const user = await User.findOne({ email: email.trim().toLowerCase() });
-        if (!user) return res.status(400).json({ error: 'Invalid operation' });
+        const cleanEmail = email.trim().toLowerCase();
+        const cleanOtp = String(otp).trim();
 
-        const hashedOtpChallenge = crypto.createHash('sha256').update(otp).digest('hex');
+        console.log(`[verifyOtp] Attempt for email: ${cleanEmail}`);
+
+        const user = await User.findOne({ email: cleanEmail });
+        if (!user) {
+            console.log('[verifyOtp] User not found');
+            return res.status(400).json({ error: 'Invalid operation' });
+        }
+
+        const hashedOtpChallenge = crypto.createHash('sha256').update(cleanOtp).digest('hex');
+        console.log(`[verifyOtp] User ID: ${user._id}`);
+        console.log(`[verifyOtp] Provided OTP hash: ${hashedOtpChallenge}`);
 
         const tokenDoc = await OtpToken.findOne({
+            userId: user._id,
+        });
+
+        if (tokenDoc) {
+            console.log(`[verifyOtp] Found token in DB with hash: ${tokenDoc.otpHash}`);
+            if (tokenDoc.otpHash !== hashedOtpChallenge) {
+                 console.log('[verifyOtp] Hashes do not match!');
+            }
+        } else {
+            console.log('[verifyOtp] No token found in DB for this user');
+        }
+
+        const exactMatchDoc = await OtpToken.findOne({
             userId: user._id,
             otpHash: hashedOtpChallenge
         });
 
-        if (!tokenDoc) {
+        if (!exactMatchDoc) {
             return res.status(400).json({ error: 'Invalid or expired OTP code' });
         }
 
         res.status(200).json({ message: 'OTP verified successfully', validSignature: true });
     } catch (err) {
+        console.error('[verifyOtp] Error:', err);
         res.status(500).json({ error: err.message });
     }
 };
@@ -276,10 +310,13 @@ exports.resetPassword = async (req, res) => {
         const { email, otp, newPassword } = req.body;
         if (!email || !otp || !newPassword) return res.status(400).json({ error: 'All fields are required' });
 
-        const user = await User.findOne({ email: email.trim().toLowerCase() });
+        const cleanEmail = email.trim().toLowerCase();
+        const cleanOtp = String(otp).trim();
+
+        const user = await User.findOne({ email: cleanEmail });
         if (!user) return res.status(400).json({ error: 'Invalid operation' });
 
-        const hashedOtpChallenge = crypto.createHash('sha256').update(otp).digest('hex');
+        const hashedOtpChallenge = crypto.createHash('sha256').update(cleanOtp).digest('hex');
 
         const tokenDoc = await OtpToken.findOne({
             userId: user._id,

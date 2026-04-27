@@ -83,7 +83,15 @@ const Login = () => {
                 setForm(f => ({ ...f, email: resetForm.email, password: '' }));
             }
         } catch (err) {
-            setError(err.message || 'Verification failed');
+            const errorMsg = err.message || 'Verification failed';
+            setError(errorMsg);
+            
+            // If the user signed up with Google, they have no password.
+            // Reset the form so the Google Sign-in button is visible again.
+            if (errorMsg.includes('Google Sign-In')) {
+                setForgotStep(0);
+                setIsSignup(false); // Make sure they are on the login view
+            }
         } finally {
             setLoading(false);
         }
