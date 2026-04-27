@@ -4,9 +4,8 @@ const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
 const Subscription = require('../models/Subscription');
 const NotificationLog = require('../models/NotificationLog');
-const { getRenewalAlertHTML } = require('../templates/emailTemplates');
 const {
-    sendEmail,
+    sendRenewalAlert,
     sendOverdueEmail,
     sendFreeTrialEndingAlert,
     sendWeeklySummary,
@@ -29,18 +28,20 @@ const toMonthly = (sub) => {
 };
 
 // ─── Helper: check if a notification was already sent today for this sub ──────
-const alreadySentToday = async (userId, subscriptionId, type) => {
+const alreadySentToday = async (userId, subscriptionId, type, tz = 'UTC') => {
+    const startOfUserDay = dayjs().tz(tz).startOf('day').toDate();
+    const endOfUserDay = dayjs().tz(tz).endOf('day').toDate();
     return NotificationLog.findOne({
         userId,
         subscriptionId,
         type,
-        sentForDate: dayjs().startOf('day').toDate(),
+        createdAt: { $gte: startOfUserDay, $lte: endOfUserDay },
     });
 };
 
 // ─── Helper: log a delivered notification ────────────────────────────────────
-const logDelivery = (userId, subscriptionId, type, sentForDate) =>
-    NotificationLog.create({ userId, subscriptionId, type, sentForDate, status: 'DELIVERED' });
+const logDelivery = (userId, subscriptionId, type) =>
+    NotificationLog.create({ userId, subscriptionId, type, status: 'DELIVERED' });
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  JOB 1 — Upcoming Renewal Alerts (runs every hour, fires at midnight local)
@@ -49,28 +50,48 @@ const runSubscriptionAlerts = async () => {
     console.log('[CRON] Executing hourly subscription alert check...');
     try {
         const today = dayjs().startOf('day').toDate();
-        const subscriptions = await Subscription.find({ alertDate: today, status: 'ACTIVE' });
+        // Check ALL active subscriptions to evaluate dynamic checkpoints
+        const subscriptions = await Subscription.find({ status: 'ACTIVE' });
 
         for (const sub of subscriptions) {
+            if (!sub.nextBillingDate) continue;
+            
             const userLocalNow = dayjs().tz(sub.userTimezone || IST_TZ);
-            if (userLocalNow.hour() !== 0) continue;
 
             if (!sub.notifyViaEmail || !sub.userEmail) continue;
 
-            // Enforce user notification preferences for Upcoming Renewals
-            const user = await User.findById(sub.userId).select('preferences');
+            const user = await User.findById(sub.userId).select('preferences timezone');
+            
+            if (isInQuietHours(user)) continue;
             if (!user?.preferences?.notifUpcomingRenewals) continue;
             
-            // If user only wants yearly renewals, ignore monthly/weekly
             if (user?.preferences?.notifYearlyOnly && sub.billingCycle !== 'YEARLY') continue;
 
-            const sent = await alreadySentToday(sub.userId, sub._id, 'EMAIL');
+            const daysUntil = dayjs(sub.nextBillingDate).startOf('day').diff(userLocalNow.startOf('day'), 'day');
+            if (daysUntil < 0) continue; // Past due date
+
+            let shouldAlert = false;
+            
+            if (user?.preferences?.multipleReminders) {
+                if (daysUntil === 7 && user.preferences.reminderD7) shouldAlert = true;
+                else if (daysUntil === 3 && user.preferences.reminderD3) shouldAlert = true;
+                else if (daysUntil === 1 && user.preferences.reminderD1) shouldAlert = true;
+                else if (daysUntil === 0 && user.preferences.reminderBilling) shouldAlert = true;
+            } else {
+                const defaultAlertDays = user?.preferences?.alertDaysBefore !== undefined ? user.preferences.alertDaysBefore : 3;
+                if (daysUntil === defaultAlertDays) shouldAlert = true;
+            }
+
+            if (!shouldAlert) continue;
+
+            // Notice we use the `daysUntil` as the `type` string to ensure we can send multiple distinct alerts per billing cycle
+            const logType = `RENEWAL_${daysUntil}D`;
+            const sent = await alreadySentToday(sub.userId, sub._id, logType, user.timezone || IST_TZ);
             if (sent) continue;
 
             try {
-                const htmlContent = getRenewalAlertHTML(sub);
-                await sendEmail(sub.userEmail, `${sub.serviceName} Renewal Alert`, htmlContent);
-                await logDelivery(sub.userId, sub._id, 'EMAIL', today);
+                await sendRenewalAlert(sub.userEmail, sub, daysUntil);
+                await logDelivery(sub.userId, sub._id, logType);
             } catch (err) {
                 console.error(`[CRON] Renewal alert failed for ${sub.userEmail}:`, err.message);
             }
@@ -95,7 +116,10 @@ const runOverdueAlerts = async () => {
         for (const sub of overdue) {
             try {
                 // Check if user has opted out of Failed Payment / Overdue alerts
-                const user = await User.findById(sub.userId).select('preferences');
+                const user = await User.findById(sub.userId).select('preferences timezone');
+                
+                if (isInQuietHours(user)) continue;
+                
                 if (user?.preferences && user.preferences.notifFailedPayments === false) {
                     continue; // Skip alerting, but keep overdueNotified false so if they toggle it on, they get it
                 }
@@ -132,8 +156,10 @@ const runFreeTrialAlerts = async () => {
             if (!sub.notifyViaEmail || !sub.userEmail) continue;
 
             // Check user preference
-            const user = await User.findById(sub.userId).select('preferences');
+            const user = await User.findById(sub.userId).select('preferences timezone');
             if (!user?.preferences?.notifFreeTrialEnding) continue;
+
+            if (isInQuietHours(user)) continue;
 
             const daysLeft = dayjs(sub.trialEndsAt).diff(now, 'day');
             try {
@@ -162,8 +188,22 @@ const runWeeklySummary = async () => {
         const in7Days = dayjs().add(7, 'day').endOf('day').toDate();
 
         for (const user of users) {
+            // Check if today is Sunday for this user
+            const userTz = user.timezone || 'UTC';
+            if (dayjs().tz(userTz).day() !== 0) continue;
+
             // Check quiet hours (skip if currently in quiet window)
             if (isInQuietHours(user)) continue;
+
+            // Prevent duplicate weekly emails for the same week
+            const startOfWeek = dayjs().tz(userTz).startOf('week').toDate();
+            const endOfWeek = dayjs().tz(userTz).endOf('week').toDate();
+            const alreadySent = await NotificationLog.findOne({
+                userId: user._id,
+                type: 'WEEKLY_SUMMARY',
+                createdAt: { $gte: startOfWeek, $lte: endOfWeek },
+            });
+            if (alreadySent) continue;
 
             const upcomingSubs = await Subscription.find({
                 userId: user._id,
@@ -179,7 +219,6 @@ const runWeeklySummary = async () => {
                 await NotificationLog.create({
                     userId: user._id,
                     type: 'WEEKLY_SUMMARY',
-                    sentForDate: dayjs().startOf('week').toDate(),
                     status: 'DELIVERED',
                 });
             } catch (err) {
@@ -206,6 +245,8 @@ const runBudgetAlerts = async () => {
         });
 
         for (const user of users) {
+            if (isInQuietHours(user)) continue;
+
             const snoozed = user.preferences?.snoozeUntil && dayjs(user.preferences.snoozeUntil).isAfter(dayjs());
             if (snoozed) continue;
 
@@ -216,14 +257,15 @@ const runBudgetAlerts = async () => {
 
             if (percentage < 80) continue;
 
-            // Idempotency: only send once per calendar month
+            // Idempotency: only send once per calendar month in user's timezone
+            const userTz = user.timezone || 'UTC';
+            const startOfMonth = dayjs().tz(userTz).startOf('month').toDate();
+            const endOfMonth = dayjs().tz(userTz).endOf('month').toDate();
+            
             const alreadySentThisMonth = await NotificationLog.findOne({
                 userId: user._id,
                 type: 'BUDGET',
-                sentForDate: {
-                    $gte: dayjs().startOf('month').toDate(),
-                    $lte: dayjs().endOf('month').toDate(),
-                },
+                createdAt: { $gte: startOfMonth, $lte: endOfMonth },
             });
             if (alreadySentThisMonth) continue;
 
@@ -232,7 +274,6 @@ const runBudgetAlerts = async () => {
                 await NotificationLog.create({
                     userId: user._id,
                     type: 'BUDGET',
-                    sentForDate: new Date(),
                     status: 'DELIVERED',
                 });
             } catch (err) {
@@ -267,6 +308,12 @@ const runDailyGmailSync = async () => {
  *  Returns true if the current UTC time falls within the user's quiet window.
  * ─────────────────────────────────────────────────────────────────────────── */
 const isInQuietHours = (user) => {
+    // Check global snooze
+    if (user.preferences?.snoozeUntil && dayjs(user.preferences.snoozeUntil).isAfter(dayjs())) {
+        return true;
+    }
+
+    // Check quiet hours
     if (!user.preferences?.quietHoursEnabled) return false;
     const start = user.preferences.quietHoursStart || '22:00';
     const end   = user.preferences.quietHoursEnd   || '08:00';
@@ -280,25 +327,25 @@ const isInQuietHours = (user) => {
  *  Bootstrap — register all cron jobs
  * ═══════════════════════════════════════════════════════════════════════════ */
 const initCronJobs = () => {
-    // JOB 1 — Renewal alerts (every hour; fires only at midnight IST)
+    // JOB 1 — Renewal alerts (every hour)
     cron.schedule('0 * * * *', runSubscriptionAlerts, { timezone: IST_TZ });
 
     // JOB 2 — Overdue alerts (every hour)
     cron.schedule('0 * * * *', runOverdueAlerts, { timezone: IST_TZ });
 
-    // JOB 3 — Free trial ending alerts (daily at 09:00 IST)
-    cron.schedule('0 9 * * *', runFreeTrialAlerts, { timezone: IST_TZ });
+    // JOB 3 — Free trial ending alerts (every hour)
+    cron.schedule('0 * * * *', runFreeTrialAlerts, { timezone: IST_TZ });
 
-    // JOB 4 — Weekly summary digest (every Sunday at 08:00 IST)
-    cron.schedule('0 8 * * 0', runWeeklySummary, { timezone: IST_TZ });
+    // JOB 4 — Weekly summary digest (every hour, triggers on Sunday)
+    cron.schedule('0 * * * *', runWeeklySummary, { timezone: IST_TZ });
 
-    // JOB 5 — Budget 80% threshold alert (daily at 10:00 IST)
-    cron.schedule('0 10 * * *', runBudgetAlerts, { timezone: IST_TZ });
+    // JOB 5 — Budget 80% threshold alert (every hour)
+    cron.schedule('0 * * * *', runBudgetAlerts, { timezone: IST_TZ });
 
     // JOB 6 — Auto Gmail sync (daily at 02:00 IST)
     cron.schedule('0 2 * * *', runDailyGmailSync, { timezone: IST_TZ });
 
-    console.log(`[CRON] Started 6 jobs in ${IST_TZ}: renewal-alerts, overdue-alerts, free-trial-alerts, weekly-summary, budget-alerts, gmail-sync.`);
+    console.log(`[CRON] Started 6 jobs: 5 hourly polling jobs (with Quiet Hours protection) and 1 daily gmail-sync.`);
 };
 
 module.exports = {
