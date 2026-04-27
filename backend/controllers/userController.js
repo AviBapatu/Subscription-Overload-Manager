@@ -218,6 +218,26 @@ exports.updateUserProfile = async (req, res) => {
     }
 };
 
+exports.sendTestEmail = async (req, res) => {
+    try {
+        if (req.user.id !== req.params.id) return res.status(403).json({ error: 'Unauthorized' });
+        const user = await User.findById(req.params.id);
+        if (!user) return res.status(404).json({ error: 'User not found' });
+
+        const { sendEmail } = require('../services/emailService');
+        const html = `
+            <h3>Test Notification Successful!</h3>
+            <p>Hi ${user.name}, your email settings are working perfectly.</p>
+            <p>You will now receive alerts here according to your preferences.</p>
+        `;
+        await sendEmail(user.email, '✅ Test Notification: System is Working', html);
+        
+        res.json({ message: 'Test email sent successfully' });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
 exports.forgotPassword = async (req, res) => {
     try {
         const { email } = req.body;

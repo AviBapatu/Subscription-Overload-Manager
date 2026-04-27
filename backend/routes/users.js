@@ -22,5 +22,6 @@ router.post('/', userController.seedUser);
 router.get('/:id', auth, userController.getUserProfile);
 router.put('/:id/preferences', auth, userController.updateUserPreferences);
 router.put('/:id', auth, userController.updateUserProfile);
+router.post('/:id/test-email', auth, userController.sendTestEmail);
 
 module.exports = router;

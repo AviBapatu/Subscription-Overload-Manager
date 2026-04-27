@@ -5,7 +5,6 @@ import { fetchUser, updateUserPreferences, updateUserProfile } from '../lib/api'
 import { useAuth } from '../lib/AuthContext';
 
 import { DeleteModal } from './profile/ui';
-import ProfileHeader from './profile/ProfileHeader';
 import ProfileSideNav, { NAV_SECTIONS } from './profile/ProfileSideNav';
 import SettingsPanels from './profile/SettingsPanels';
 
@@ -140,9 +139,15 @@ const Profile = () => {
         profileMut.mutate({ name: user?.name, phoneNumber: phoneDraft, timezone: user?.timezone });
     };
 
-    const handleTestEmail = () => {
-        setTestSent(true);
-        setTimeout(() => setTestSent(false), 3000);
+    const handleTestEmail = async () => {
+        try {
+            await api.post(`/users/${user?._id}/test-email`);
+            setTestSent(true);
+            setTimeout(() => setTestSent(false), 3000);
+        } catch (err) {
+            console.error('Failed to send test email', err);
+            alert('Failed to send test email');
+        }
     };
 
     // ── Derived ───────────────────────────────────────────────────────────────
@@ -161,8 +166,6 @@ const Profile = () => {
             {showDelete && <DeleteModal onClose={() => setShowDelete(false)} />}
 
             <div className="animate-in fade-in slide-in-from-bottom-4 duration-700 flex flex-col gap-10">
-
-                <ProfileHeader user={user} />
 
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                     <ProfileSideNav activeSection={activeSection} />
