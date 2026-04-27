@@ -6,7 +6,7 @@ const Subscription = require('../models/Subscription');
 const NotificationLog = require('../models/NotificationLog');
 const { getRenewalAlertHTML } = require('../templates/emailTemplates');
 const {
-    sendBrevoEmail,
+    sendEmail,
     sendOverdueEmail,
     sendFreeTrialEndingAlert,
     sendWeeklySummary,
@@ -57,12 +57,19 @@ const runSubscriptionAlerts = async () => {
 
             if (!sub.notifyViaEmail || !sub.userEmail) continue;
 
+            // Enforce user notification preferences for Upcoming Renewals
+            const user = await User.findById(sub.userId).select('preferences');
+            if (!user?.preferences?.notifUpcomingRenewals) continue;
+            
+            // If user only wants yearly renewals, ignore monthly/weekly
+            if (user?.preferences?.notifYearlyOnly && sub.billingCycle !== 'YEARLY') continue;
+
             const sent = await alreadySentToday(sub.userId, sub._id, 'EMAIL');
             if (sent) continue;
 
             try {
                 const htmlContent = getRenewalAlertHTML(sub);
-                await sendBrevoEmail(sub.userEmail, `${sub.serviceName} Renewal Alert`, htmlContent);
+                await sendEmail(sub.userEmail, `${sub.serviceName} Renewal Alert`, htmlContent);
                 await logDelivery(sub.userId, sub._id, 'EMAIL', today);
             } catch (err) {
                 console.error(`[CRON] Renewal alert failed for ${sub.userEmail}:`, err.message);
@@ -87,6 +94,12 @@ const runOverdueAlerts = async () => {
 
         for (const sub of overdue) {
             try {
+                // Check if user has opted out of Failed Payment / Overdue alerts
+                const user = await User.findById(sub.userId).select('preferences');
+                if (user?.preferences && user.preferences.notifFailedPayments === false) {
+                    continue; // Skip alerting, but keep overdueNotified false so if they toggle it on, they get it
+                }
+
                 await sendOverdueEmail(sub);
                 sub.overdueNotified = true;
                 await sub.save();

@@ -23,7 +23,7 @@ const transporter = nodemailer.createTransport({
 });
 
 /* ─── Core send function ─────────────────────────────────────────────────── */
-const sendBrevoEmail = async (to, subject, htmlContent) => {
+const sendEmail = async (to, subject, htmlContent) => {
     try {
         const info = await transporter.sendMail({
             from: `"${SENDER_NAME}" <${SENDER_EMAIL}>`,
@@ -49,7 +49,7 @@ const sendBrevoEmail = async (to, subject, htmlContent) => {
  * @param {number} daysUntil - days until billing (0 = today, 1 = tomorrow, etc.)
  */
 const sendRenewalAlert = (to, sub, daysUntil) =>
-    sendBrevoEmail(to, `Reminder: ${sub.serviceName} renews ${daysUntil === 0 ? 'today' : `in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}`}`, getRenewalAlertHTML(sub, daysUntil));
+    sendEmail(to, `Reminder: ${sub.serviceName} renews ${daysUntil === 0 ? 'today' : `in ${daysUntil} day${daysUntil !== 1 ? 's' : ''}`}`, getRenewalAlertHTML(sub, daysUntil));
 
 /**
  * OTP for password reset.
@@ -57,7 +57,7 @@ const sendRenewalAlert = (to, sub, daysUntil) =>
  * @param {string} otp - plain-text 6-digit code
  */
 const sendOtpEmail = (to, otp) =>
-    sendBrevoEmail(to, 'Password Reset Request', getOtpEmailHTML(otp));
+    sendEmail(to, 'Password Reset Request', getOtpEmailHTML(otp));
 
 /**
  * Free trial ending alert.
@@ -66,7 +66,7 @@ const sendOtpEmail = (to, otp) =>
  * @param {number} daysLeft - days until trial converts to paid
  */
 const sendFreeTrialEndingAlert = (to, sub, daysLeft) =>
-    sendBrevoEmail(to, `⏳ Your ${sub.serviceName} trial ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`, getFreeTrialEndingHTML(sub, daysLeft));
+    sendEmail(to, `⏳ Your ${sub.serviceName} trial ends in ${daysLeft} day${daysLeft !== 1 ? 's' : ''}`, getFreeTrialEndingHTML(sub, daysLeft));
 
 /**
  * Failed payment notification.
@@ -74,7 +74,7 @@ const sendFreeTrialEndingAlert = (to, sub, daysLeft) =>
  * @param {Object} sub
  */
 const sendFailedPaymentAlert = (to, sub) =>
-    sendBrevoEmail(to, `❌ Payment failed for ${sub.serviceName}`, getFailedPaymentHTML(sub));
+    sendEmail(to, `❌ Payment failed for ${sub.serviceName}`, getFailedPaymentHTML(sub));
 
 /**
  * Price increase notification.
@@ -85,7 +85,7 @@ const sendFailedPaymentAlert = (to, sub) =>
  * @param {string|Date} effectiveDate - when the new price kicks in
  */
 const sendPriceIncreaseAlert = (to, sub, oldPrice, newPrice, effectiveDate) =>
-    sendBrevoEmail(to, `📈 ${sub.serviceName} is increasing its price`, getPriceIncreaseHTML(sub, oldPrice, newPrice, effectiveDate));
+    sendEmail(to, `📈 ${sub.serviceName} is increasing its price`, getPriceIncreaseHTML(sub, oldPrice, newPrice, effectiveDate));
 
 /**
  * Sunday weekly digest.
@@ -95,7 +95,7 @@ const sendPriceIncreaseAlert = (to, sub, oldPrice, newPrice, effectiveDate) =>
  * @param {number} totalMonthly - total monthly spend across all subs
  */
 const sendWeeklySummary = (to, userName, upcomingSubs, totalMonthly) =>
-    sendBrevoEmail(to, '📊 Your Weekly Subscription Summary', getWeeklySummaryHTML(userName, upcomingSubs, totalMonthly));
+    sendEmail(to, '📊 Your Weekly Subscription Summary', getWeeklySummaryHTML(userName, upcomingSubs, totalMonthly));
 
 /**
  * Budget threshold alert (80% or 100%).
@@ -106,7 +106,7 @@ const sendWeeklySummary = (to, userName, upcomingSubs, totalMonthly) =>
  * @param {number} percentage - e.g. 80 or 100
  */
 const sendBudgetAlert = (to, userName, spentAmount, budgetAmount, percentage) =>
-    sendBrevoEmail(to, `💰 Budget Alert: You've used ${percentage}% of your limit`, getBudgetAlertHTML(userName, spentAmount, budgetAmount, percentage));
+    sendEmail(to, `💰 Budget Alert: You've used ${percentage}% of your limit`, getBudgetAlertHTML(userName, spentAmount, budgetAmount, percentage));
 
 /**
  * New subscription added confirmation.
@@ -115,7 +115,7 @@ const sendBudgetAlert = (to, userName, spentAmount, budgetAmount, percentage) =>
  * @param {Object} sub
  */
 const sendNewSubscriptionAlert = (to, userName, sub) =>
-    sendBrevoEmail(to, `✨ New subscription added: ${sub.serviceName}`, getNewSubscriptionHTML(userName, sub));
+    sendEmail(to, `✨ New subscription added: ${sub.serviceName}`, getNewSubscriptionHTML(userName, sub));
 
 /**
  * Overdue payment alert.
@@ -123,12 +123,12 @@ const sendNewSubscriptionAlert = (to, userName, sub) =>
  */
 const sendOverdueEmail = (sub) => {
     const { getOverdueAlertHTML } = require('../templates/emailTemplates');
-    return sendBrevoEmail(sub.userEmail, `⚠️ Overdue Alert: ${sub.serviceName}`, getOverdueAlertHTML(sub));
+    return sendEmail(sub.userEmail, `⚠️ Overdue Alert: ${sub.serviceName}`, getOverdueAlertHTML(sub));
 };
 
 /* ─── Exports ─────────────────────────────────────────────────────────────── */
 module.exports = {
-    sendBrevoEmail,
+    sendEmail,
     sendOtpEmail,
     sendRenewalAlert,
     sendFreeTrialEndingAlert,

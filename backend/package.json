@@ -12,7 +12,6 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@getbrevo/brevo": "^5.0.4",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dayjs": "^1.11.20",
@@ -24,6 +23,7 @@
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.4.1",
     "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.6",
     "openai": "^6.34.0"
   },
   "devDependencies": {
