@@ -47,13 +47,6 @@ const TopNavBar = () => {
 
                 {/* Right Actions */}
                 <div className="flex items-center gap-4">
-                    <button className="w-10 h-10 rounded-full bg-surface-container-low hover:bg-surface-container flex items-center justify-center text-on-surface-variant transition-colors relative">
-                        <span className="material-symbols-outlined text-[20px]">notifications</span>
-                        <span className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full pointer-events-none"></span>
-                    </button>
-                    
-                    <div className="h-6 w-[1px] bg-outline-variant/20 hidden sm:block"></div>
-                    
                     <div className="flex items-center gap-3">
                         <Link to="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                             <div className="w-10 h-10 rounded-full bg-surface-container-high border-2 border-surface-container-lowest shadow-sm overflow-hidden flex items-center justify-center bg-primary/10 text-primary font-black">
