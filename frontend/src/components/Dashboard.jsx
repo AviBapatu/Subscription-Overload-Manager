@@ -126,7 +126,7 @@ const Dashboard = () => {
 
             {/* Overdue Alert Banner */}
             {overdue.length > 0 && (
-                <div className="bg-error/5 border border-error/20 rounded-2xl p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6 animate-pulse hover:animate-none transition-all">
+                <div className="bg-error/5 border border-error/20 rounded-2xl p-6 mb-8 flex flex-col md:flex-row items-center justify-between gap-6">
                     <div className="flex items-center gap-5 text-center md:text-left">
                         <div className="w-14 h-14 rounded-full bg-error/10 flex items-center justify-center text-error">
                             <span className="material-symbols-outlined text-[32px]" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
@@ -138,7 +138,7 @@ const Dashboard = () => {
                     </div>
                     <button
                         onClick={scrollToTimeline}
-                        className="bg-error text-white px-8 py-3.5 rounded-full font-bold hover:scale-105 active:scale-95 transition-all shadow-lg shadow-error/20 whitespace-nowrap">
+                        className="bg-error text-white px-8 py-3.5 rounded-full font-bold active:scale-95 transition-all shadow-lg shadow-error/20 whitespace-nowrap">
                         Review & Resolve Now
                     </button>
                 </div>
