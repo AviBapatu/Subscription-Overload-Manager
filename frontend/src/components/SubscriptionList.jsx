@@ -103,7 +103,7 @@ const SubscriptionList = () => {
                     <div className="px-2 py-1 bg-surfaceHighlight text-xs rounded-md text-textSecondary font-medium">{sub.billingCycle}</div>
                   </div>
                   <div className="space-y-1 mb-6">
-                    <div className="text-2xl font-bold text-white">${sub.cost}</div>
+                    <div className="text-2xl font-bold text-white">₹{sub.cost}</div>
                     <div className="text-sm text-textSecondary">
                       Renews on <span className={isRenewingSoon ? 'text-accent font-semibold' : 'text-white font-medium'}>{dayjs(sub.nextBillingDate).format('MMM DD, YYYY')}</span>
                       ({daysUntil} days left)

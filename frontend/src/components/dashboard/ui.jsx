@@ -51,7 +51,7 @@ export const PieTooltip = ({ active, payload }) => {
         <div className="glass-card px-4 py-3 rounded-xl shadow-lg border border-white/40">
             <p className="text-sm font-bold text-on-surface">{d.name}</p>
             <p className="text-xs text-on-surface-variant">{d.count} sub{d.count !== 1 ? 's' : ''}</p>
-            <p className="text-primary font-black">${d.value}/mo · {d.percentage}%</p>
+            <p className="text-primary font-black">₹{d.value}/mo · {d.percentage}%</p>
         </div>
     );
 };

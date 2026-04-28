@@ -32,7 +32,7 @@ const AnalyticsSection = ({ spendingHistory, historyLoading, categoryBreakdown, 
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e8ec" vertical={false} />
                         <XAxis dataKey="month" tick={{ fontSize: 11, fontWeight: 700, fill: '#595c5e' }}
                             tickFormatter={(v) => v.split(' ')[0]} axisLine={false} tickLine={false} />
-                        <YAxis tick={{ fontSize: 11, fill: '#595c5e' }} tickFormatter={v => `$${v}`}
+                        <YAxis tick={{ fontSize: 11, fill: '#595c5e' }} tickFormatter={v => `₹${v}`}
                             axisLine={false} tickLine={false} width={52} />
                         <Tooltip content={<AreaTooltip />} />
                         <Area type="monotone" dataKey="spend" stroke="#0058bb" strokeWidth={2.5}
@@ -72,7 +72,7 @@ const AnalyticsSection = ({ spendingHistory, historyLoading, categoryBreakdown, 
                                     <div className="w-2 h-2 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
                                     <span className="font-bold text-on-surface opacity-80">{d.name}</span>
                                 </div>
-                                <span className="font-black text-on-surface">${d.value}</span>
+                                <span className="font-black text-on-surface">₹{d.value}</span>
                             </div>
                         ))}
                     </div>

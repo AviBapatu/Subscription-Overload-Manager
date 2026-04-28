@@ -92,8 +92,8 @@ const HeroSection = ({ stats, statsLoading, isSyncing, isAutoScanEnabled, onGmai
                             <stop offset="100%" stopColor="#f39cfb" />
                         </linearGradient>
                         <linearGradient id="g-teal" x1="0%" x2="100%" y1="0%" y2="0%">
-                            <stop offset="0%" stopColor="#3853b7" />
-                            <stop offset="100%" stopColor="#b4c1ff" />
+                            <stop offset="0%" stopColor="#d97706" />
+                            <stop offset="100%" stopColor="#fcd34d" />
                         </linearGradient>
                     </defs>
                 </svg>
@@ -112,7 +112,7 @@ const HeroSection = ({ stats, statsLoading, isSyncing, isAutoScanEnabled, onGmai
                         <span className="w-2.5 h-2.5 rounded-full bg-tertiary inline-block" />Active
                     </span>
                     <span className="flex items-center gap-1.5">
-                        <span className="w-2.5 h-2.5 rounded-full bg-secondary inline-block" />Due Soon
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 inline-block" />Due Soon
                     </span>
                 </div>
             </div>
