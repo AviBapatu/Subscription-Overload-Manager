@@ -64,90 +64,39 @@ async function extractSubscriptionWithLLM(text) {
     // Part 5: Input safety — cap to 2000 chars to prevent token overload
     const safeText = text.slice(0, 2000);
 
-    const prompt = `You are a strict and reliable data extraction engine.
+    const prompt = `Extract subscription details from this email into JSON.
+If not a recurring payment or subscription invoice, return {"isSubscription": false}.
 
-Your task is to analyze an email and determine whether it represents a paid subscription, renewal, invoice, or recurring payment. If it does, extract structured subscription data.
+RULES:
+1. amount: Number only, no symbols.
+2. currency: 3-letter ISO code (INR, USD, etc).
+3. billingCycle: "MONTHLY", "YEARLY", "WEEKLY", or null.
+4. nextBillingDate: "YYYY-MM-DD" or null.
+5. Do not guess missing values. Return null if unknown.
 
-You must prioritize accuracy over completeness.
-
--------------------------
-STRICT RULES:
--------------------------
-- Return ONLY valid JSON (no explanation, no text outside JSON)
-- Do NOT guess or infer missing values
-- If a field is unclear or not explicitly present, return null
-- Amount must be a number only (no symbols like ₹, $, etc.)
-- Currency must be a 3-letter ISO code (INR, USD, EUR, etc.)
-- Dates must be in YYYY-MM-DD format if clearly available, otherwise null
-- If the email is NOT clearly related to a subscription or recurring payment, return:
-  { "isSubscription": false }
-
--------------------------
-OUTPUT FORMAT:
--------------------------
+SCHEMA:
 {
   "isSubscription": boolean,
-  "serviceName": string or null,
-  "amount": number or null,
-  "currency": string or null,
-  "billingCycle": "monthly" | "yearly" | "weekly" | "unknown" | null,
-  "nextBillingDate": string (YYYY-MM-DD) or null,
-  "confidence": number (0 to 1)
+  "serviceName": string | null,
+  "amount": number | null,
+  "currency": string | null,
+  "billingCycle": string | null,
+  "nextBillingDate": string | null,
+  "confidence": number // 0.0 to 1.0
 }
 
--------------------------
-DETECTION GUIDELINES:
--------------------------
-Mark isSubscription = true ONLY if there is clear evidence of:
-- recurring payment
-- subscription renewal
-- billing cycle (monthly/yearly/etc.)
-- or a known subscription service (Netflix, Spotify, etc.)
-
-Indicators include words like:
-"subscription", "invoice", "receipt", "payment", "renewal", "billing"
-
-If it is a one-time purchase, promotional email, or unrelated message → isSubscription = false
-
--------------------------
-EXTRACTION RULES:
--------------------------
-- serviceName: Identify the brand/service (e.g., Netflix, Spotify)
-- amount: Extract only if clearly mentioned (e.g., 499, 9.99)
-- currency: Detect from symbol or context (₹ → INR, $ → USD)
-- billingCycle:
-  - "monthly" if phrases like "per month", "monthly"
-  - "yearly" if "annual", "per year"
-  - "weekly" if mentioned
-  - otherwise "unknown"
-- nextBillingDate: Extract ONLY if explicitly mentioned
-
--------------------------
-CONFIDENCE SCORING:
--------------------------
-Assign a confidence score between 0 and 1 based on clarity:
-- High confidence (~0.8–1.0): service + amount + recurring context clearly present
-- Medium (~0.5–0.7): partial info but likely subscription
-- Low (~0.2–0.4): weak signals, unclear structure
-
--------------------------
-EMAIL INPUT:
--------------------------
-${safeText}
-
--------------------------
-FINAL INSTRUCTION:
--------------------------
-Return ONLY valid JSON. No explanations. No extra text.`;
+EMAIL TEXT:
+${safeText}`;
 
     try {
         const ai = getClient();
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemma-4-26b-a4b-it',
             contents: prompt,
             config: {
                 temperature: 0,
                 maxOutputTokens: 300,
+                responseMimeType: 'application/json',
             }
         });
 
