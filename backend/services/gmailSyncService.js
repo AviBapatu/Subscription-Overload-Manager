@@ -44,6 +44,10 @@ async function syncFromGmail(accessToken, userId) {
   let llmCalls = 0;
   const MAX_LLM_CALLS = 5;
 
+  const User = require('../models/User');
+  const user = await User.findById(userId);
+  const userEmailStr = user?.email?.toLowerCase() || '';
+
   for (const msg of messages) {
     const msgDetails = await gmail.users.messages.get({
       userId: 'me',
@@ -60,6 +64,12 @@ async function syncFromGmail(accessToken, userId) {
     for (const header of headers) {
       if (header.name.toLowerCase() === 'subject') subject = header.value;
       if (header.name.toLowerCase() === 'from') from = header.value;
+    }
+
+    // SKIP emails sent by the user themselves
+    if (userEmailStr && from.toLowerCase().includes(userEmailStr)) {
+      console.log(`[SCAN] SKIP (sent by self): "${subject}"`);
+      continue;
     }
 
     // Debug: confirm each email entering the pipeline
@@ -219,14 +229,11 @@ async function runBackgroundSync(userId) {
         const date = new Date(item.nextBillingDate);
         if (isNaN(date.getTime())) continue;
 
+        // 2. Strong Duplicate Protection (Service Name check)
         const exists = await Subscription.findOne({
             userId,
-            serviceName: serviceName,
-            cost: amount,
-            nextBillingDate: {
-                $gte: new Date(date.getTime() - 3 * 86400000),
-                $lte: new Date(date.getTime() + 3 * 86400000)
-            }
+            serviceName: { $regex: new RegExp(`^${serviceName.trim()}$`, 'i') },
+            status: { $in: ['ACTIVE', 'SUGGESTED', 'PAUSED'] }
         });
 
         if (exists) continue;

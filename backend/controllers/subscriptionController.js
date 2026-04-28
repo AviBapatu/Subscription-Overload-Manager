@@ -395,15 +395,11 @@ exports.syncFromGmail = async (req, res) => {
                 continue;
             }
 
-            // 2. Light Duplicate Protection
+            // 2. Strong Duplicate Protection (Service Name check)
             const exists = await Subscription.findOne({
                 userId,
-                serviceName: serviceName,
-                cost: amount,
-                nextBillingDate: {
-                    $gte: new Date(date.getTime() - 3 * 86400000),
-                    $lte: new Date(date.getTime() + 3 * 86400000)
-                }
+                serviceName: { $regex: new RegExp(`^${serviceName.trim()}$`, 'i') },
+                status: { $in: ['ACTIVE', 'SUGGESTED', 'PAUSED'] }
             });
 
             if (exists) {
@@ -492,12 +488,8 @@ exports.setupAutoSync = async (req, res) => {
 
             const exists = await Subscription.findOne({
                 userId,
-                serviceName: serviceName,
-                cost: amount,
-                nextBillingDate: {
-                    $gte: new Date(date.getTime() - 3 * 86400000),
-                    $lte: new Date(date.getTime() + 3 * 86400000)
-                }
+                serviceName: { $regex: new RegExp(`^${serviceName.trim()}$`, 'i') },
+                status: { $in: ['ACTIVE', 'SUGGESTED', 'PAUSED'] }
             });
 
             if (exists) continue;
