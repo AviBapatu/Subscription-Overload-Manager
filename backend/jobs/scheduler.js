@@ -61,6 +61,7 @@ const runSubscriptionAlerts = async () => {
             if (!sub.notifyViaEmail || !sub.userEmail) continue;
 
             const user = await User.findById(sub.userId).select('preferences timezone');
+            if (!user) continue; // Skip orphaned subscriptions (user deleted)
             
             if (isInQuietHours(user)) continue;
             if (!user?.preferences?.notifUpcomingRenewals) continue;
@@ -117,6 +118,7 @@ const runOverdueAlerts = async () => {
             try {
                 // Check if user has opted out of Failed Payment / Overdue alerts
                 const user = await User.findById(sub.userId).select('preferences timezone');
+                if (!user) continue; // Skip orphaned subscriptions (user deleted)
                 
                 if (isInQuietHours(user)) continue;
                 
@@ -308,6 +310,7 @@ const runDailyGmailSync = async () => {
  *  Returns true if the current UTC time falls within the user's quiet window.
  * ─────────────────────────────────────────────────────────────────────────── */
 const isInQuietHours = (user) => {
+    if (!user) return false; // No user document — don't block notifications
     // Check global snooze
     if (user.preferences?.snoozeUntil && dayjs(user.preferences.snoozeUntil).isAfter(dayjs())) {
         return true;
