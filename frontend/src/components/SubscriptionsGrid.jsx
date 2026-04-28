@@ -25,6 +25,7 @@ const SubscriptionsGrid = () => {
     const [isModalOpen,  setIsModalOpen]  = useState(false);
     const [editingSub,   setEditingSub]   = useState(null);
     const [lastApprovedId, setLastApprovedId] = useState(null);
+    const [isSynced, setIsSynced] = useState(false);
 
     const [formData, setFormData] = useState({
         serviceName: '',
@@ -101,7 +102,8 @@ const SubscriptionsGrid = () => {
         mutationFn: () => triggerManualSync(),
         onSuccess: () => {
             invalidateAll(queryClient);
-            alert("Email sync completed successfully!");
+            setIsSynced(true);
+            setTimeout(() => setIsSynced(false), 3000);
         },
         onError: (err) => alert(`Sync failed: ${err.message}`),
     });
@@ -168,12 +170,12 @@ const SubscriptionsGrid = () => {
                 <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 self-start md:self-end">
                     <button 
                         onClick={() => syncMut.mutate()} 
-                        disabled={syncMut.isPending}
-                        className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all disabled:opacity-70 ${syncMut.isPending ? 'bg-primary/10 text-primary' : 'bg-primary text-white hover:bg-primary/90 shadow-md'}`}>
+                        disabled={syncMut.isPending || isSynced}
+                        className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all disabled:opacity-70 ${syncMut.isPending ? 'bg-primary/10 text-primary' : (isSynced ? 'bg-tertiary text-white shadow-md' : 'bg-primary text-white hover:bg-primary/90 shadow-md')}`}>
                         <span className={`material-symbols-outlined text-[18px] ${syncMut.isPending ? 'animate-spin' : ''}`}>
-                            {syncMut.isPending ? 'sync' : 'cloud_sync'}
+                            {syncMut.isPending ? 'sync' : (isSynced ? 'check_circle' : 'cloud_sync')}
                         </span>
-                        {syncMut.isPending ? 'Syncing...' : 'Sync Emails'}
+                        {syncMut.isPending ? 'Syncing...' : (isSynced ? 'Synced!' : 'Sync Emails')}
                     </button>
                     
                     <div className="flex bg-surface-container-low p-1.5 rounded-full">
