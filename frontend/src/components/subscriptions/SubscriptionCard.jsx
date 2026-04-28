@@ -145,7 +145,7 @@ const SubscriptionCard = ({
             <div className="flex items-end justify-between mb-4">
                 <div>
                     <p className="text-[10px] font-bold text-outline-variant uppercase tracking-widest mb-1">{sub.billingCycle || 'MONTHLY'}</p>
-                    <p className="text-3xl font-black text-on-background tracking-tighter">${sub.cost.toFixed(2)}</p>
+                    <p className="text-3xl font-black text-on-background tracking-tighter">₹{sub.cost.toFixed(2)}</p>
                 </div>
                 <div className="text-right">
                     <p className="text-[10px] font-bold text-outline-variant uppercase tracking-widest mb-1">Next Bill</p>

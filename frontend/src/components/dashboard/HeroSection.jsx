@@ -29,7 +29,7 @@ const HeroSection = ({ stats, statsLoading, isSyncing, isAutoScanEnabled, onGmai
                 </h1>
                 <p className="text-xl text-on-surface-variant leading-relaxed max-w-lg">
                     Manage <span className="font-bold text-on-surface">{stats?.activeCount ?? '…'} active subscriptions</span>.
-                    {' '}Spending <span className="font-bold text-primary">${stats?.monthlySpend?.toFixed(2) ?? '…'}</span> this month.
+                    {' '}Spending <span className="font-bold text-primary">₹{stats?.monthlySpend?.toFixed(2) ?? '…'}</span> this month.
                 </p>
                 {stats?.lastGmailSync && (
                     <p className="text-sm font-bold text-outline-variant uppercase tracking-widest">
@@ -100,7 +100,7 @@ const HeroSection = ({ stats, statsLoading, isSyncing, isAutoScanEnabled, onGmai
                 <div className="absolute flex flex-col items-center text-center">
                     {statsLoading
                         ? <Skeleton className="w-20 h-10" />
-                        : <span className="text-4xl font-black tracking-tighter">${stats?.monthlySpend?.toFixed(0)}</span>
+                        : <span className="text-4xl font-black tracking-tighter">₹{stats?.monthlySpend?.toFixed(0)}</span>
                     }
                     <span className="text-xs uppercase tracking-widest font-bold text-on-surface-variant mt-1">/ month</span>
                 </div>

@@ -39,7 +39,7 @@ export const AreaTooltip = ({ active, payload, label }) => {
     return (
         <div className="glass-card px-4 py-3 rounded-xl shadow-lg border border-white/40">
             <p className="text-xs font-bold text-on-surface-variant mb-1">{label}</p>
-            <p className="text-lg font-black text-primary">${payload[0].value?.toFixed(2)}</p>
+            <p className="text-lg font-black text-primary">₹{payload[0].value?.toFixed(2)}</p>
         </div>
     );
 };
@@ -70,7 +70,7 @@ export const TimelineItem = ({ sub, index, isLast }) => {
                     {dateStr} • {label}
                 </span>
                 <h4 className="font-bold text-lg text-on-surface">{sub.serviceName}</h4>
-                <p className="text-on-surface-variant text-sm">{sub.billingCycle.charAt(0) + sub.billingCycle.slice(1).toLowerCase()} plan · ${sub.cost.toFixed(2)}</p>
+                <p className="text-on-surface-variant text-sm">{sub.billingCycle.charAt(0) + sub.billingCycle.slice(1).toLowerCase()} plan · ₹{sub.cost.toFixed(2)}</p>
             </div>
         </div>
     );

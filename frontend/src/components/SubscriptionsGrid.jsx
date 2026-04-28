@@ -147,7 +147,7 @@ const SubscriptionsGrid = () => {
                     <h1 className="text-4xl md:text-5xl font-black tracking-tighter text-on-background mb-3">Subscriptions</h1>
                     <p className="text-on-surface-variant text-lg">
                         {statusFilter === 'ALL' ? (
-                            <>You have <span className="text-primary font-bold">{activeCount} active</span> services costing <span className="text-primary font-bold">${totalMonthlyCost.toFixed(2)}</span> / mo.</>
+                            <>You have <span className="text-primary font-bold">{activeCount} active</span> services costing <span className="text-primary font-bold">₹{totalMonthlyCost.toFixed(2)}</span> / mo.</>
                         ) : (
                             <>Viewing {statusFilter.toLowerCase()} subscriptions.</>
                         )}
