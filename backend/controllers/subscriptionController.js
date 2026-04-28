@@ -411,7 +411,7 @@ exports.syncFromGmail = async (req, res) => {
             const sub = new Subscription({
                 ...item,
                 userId,
-                serviceName: serviceName, // mapped correctly to Subscription Schema requirement
+                serviceName: serviceName,
                 cost: amount,
                 nextBillingDate: date,
                 status: "SUGGESTED",
