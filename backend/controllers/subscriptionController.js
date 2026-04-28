@@ -668,3 +668,18 @@ exports.getUpcomingTimeline = async (req, res) => {
         res.status(500).json({ error: "Failed to fetch timeline", details: err.message });
     }
 };
+
+/**
+ * Trigger a manual sync for the currently logged in user
+ */
+exports.triggerManualSync = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const gmailSyncService = require('../services/gmailSyncService');
+        await gmailSyncService.runBackgroundSync(userId);
+        res.json({ message: 'Manual sync complete' });
+    } catch (err) {
+        console.error('[MANUAL SYNC ERROR]', err);
+        res.status(500).json({ error: 'Manual sync failed', details: err.message });
+    }
+};

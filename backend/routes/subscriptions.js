@@ -38,5 +38,6 @@ router.delete('/:id', subscriptionController.deleteSubscription);
 // Gmail Sync
 router.post('/sync-gmail', subscriptionController.syncFromGmail);
 router.post('/auto-setup', subscriptionController.setupAutoSync);
+router.post('/sync-manual', subscriptionController.triggerManualSync);
 
 module.exports = router;

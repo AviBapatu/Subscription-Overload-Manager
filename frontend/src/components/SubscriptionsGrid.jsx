@@ -5,6 +5,7 @@ import { useAuth } from '../lib/AuthContext';
 import {
     fetchSubscriptions, addSubscription, updateSubscription,
     updateSubscriptionStatus, paySubscription, deleteSubscription, ignoreSubscription,
+    triggerManualSync
 } from '../lib/api';
 
 import SubscriptionCard from './subscriptions/SubscriptionCard';
@@ -96,6 +97,15 @@ const SubscriptionsGrid = () => {
         onSuccess: () => invalidateAll(queryClient),
     });
 
+    const syncMut = useMutation({
+        mutationFn: () => triggerManualSync(),
+        onSuccess: () => {
+            invalidateAll(queryClient);
+            alert("Email sync completed successfully!");
+        },
+        onError: (err) => alert(`Sync failed: ${err.message}`),
+    });
+
     // ── Modal helpers ─────────────────────────────────────────────────────────
     const openAddModal = () => {
         setEditingSub(null);
@@ -154,15 +164,27 @@ const SubscriptionsGrid = () => {
                     </p>
                 </div>
 
-                {/* Filter tabs */}
-                <div className="flex bg-surface-container-low p-1.5 rounded-full self-start md:self-end">
-                    {['ALL', 'ACTIVE', 'PENDING'].map(sf => (
-                        <button key={sf}
-                            onClick={() => setStatusFilter(sf)}
-                            className={`px-6 py-1.5 rounded-full text-sm font-semibold transition-all ${statusFilter === sf ? 'bg-surface-container-lowest text-on-surface shadow-sm' : 'text-on-surface-variant hover:bg-surface-container/50'}`}>
-                            {sf === 'ALL' ? 'All' : sf.charAt(0) + sf.slice(1).toLowerCase()}
-                        </button>
-                    ))}
+                {/* Controls: Sync & Filters */}
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 self-start md:self-end">
+                    <button 
+                        onClick={() => syncMut.mutate()} 
+                        disabled={syncMut.isPending}
+                        className={`flex items-center gap-2 px-5 py-2 rounded-full text-sm font-bold transition-all disabled:opacity-70 ${syncMut.isPending ? 'bg-primary/10 text-primary' : 'bg-primary text-white hover:bg-primary/90 shadow-md'}`}>
+                        <span className={`material-symbols-outlined text-[18px] ${syncMut.isPending ? 'animate-spin' : ''}`}>
+                            {syncMut.isPending ? 'sync' : 'cloud_sync'}
+                        </span>
+                        {syncMut.isPending ? 'Syncing...' : 'Sync Emails'}
+                    </button>
+                    
+                    <div className="flex bg-surface-container-low p-1.5 rounded-full">
+                        {['ALL', 'ACTIVE', 'PENDING'].map(sf => (
+                            <button key={sf}
+                                onClick={() => setStatusFilter(sf)}
+                                className={`px-6 py-1.5 rounded-full text-sm font-semibold transition-all ${statusFilter === sf ? 'bg-surface-container-lowest text-on-surface shadow-sm' : 'text-on-surface-variant hover:bg-surface-container/50'}`}>
+                                {sf === 'ALL' ? 'All' : sf.charAt(0) + sf.slice(1).toLowerCase()}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </header>
 

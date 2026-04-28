@@ -106,3 +106,7 @@ export const syncFromGmail = (userId, accessToken) =>
 
 export const setupAutoSync = (userId, code) =>
     api.post('/subscriptions/auto-setup', { userId, code });
+export const triggerManualSync = async () => {
+    const res = await api.post('/subscriptions/sync-manual');
+    return res.data;
+};
