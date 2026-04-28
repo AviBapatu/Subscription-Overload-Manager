@@ -1,6 +1,6 @@
 /**
  * LLM Fallback Service
- * Uses OpenAI GPT-4o-mini to extract subscription data from emails
+ * Uses Google Gemini 2.5 Flash to extract subscription data from emails
  * that pass the heuristic filter but don't match any known service parsers.
  *
  * Hardening layers:
@@ -12,16 +12,16 @@
  *   6. Trace logging (service / amount / date — never full email body)
  */
 
-const OpenAI = require('openai');
+const { GoogleGenAI } = require('@google/genai');
 
-let client = null;
+let ai = null;
 
 // ─── Lazy client ────────────────────────────────────────────────────────────
 function getClient() {
-    if (!client) {
-        client = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    if (!ai) {
+        ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     }
-    return client;
+    return ai;
 }
 
 // ─── Part 1: Robust JSON extractor ───────────────────────────────────────────
@@ -56,8 +56,8 @@ function normalizeDate(dateStr) {
  */
 async function extractSubscriptionWithLLM(text) {
     // Part 4: API key safety — fail fast, don't confuse the caller
-    if (!process.env.OPENAI_API_KEY) {
-        console.warn('[LLM] Skipped — OPENAI_API_KEY not configured');
+    if (!process.env.GEMINI_API_KEY) {
+        console.warn('[LLM] Skipped — GEMINI_API_KEY not configured');
         return null;
     }
 
@@ -141,15 +141,17 @@ FINAL INSTRUCTION:
 Return ONLY valid JSON. No explanations. No extra text.`;
 
     try {
-        const openai = getClient();
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0,
-            max_tokens: 300
+        const ai = getClient();
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                temperature: 0,
+                maxOutputTokens: 300,
+            }
         });
 
-        const raw = response.choices[0]?.message?.content;
+        const raw = response.text;
         if (!raw) {
             console.warn('[LLM] Empty response from model');
             return null;
