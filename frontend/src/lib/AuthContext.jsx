@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import api from './api';
 
 const AuthContext = createContext(null);
 
@@ -30,6 +31,23 @@ export const AuthProvider = ({ children }) => {
     const logout = useCallback(() => {
         setUser(null);
     }, [setUser]);
+
+    // Silently refresh user data from the backend on every app mount.
+    // This ensures fields like profilePicture are always up-to-date even
+    // if the localStorage copy is stale from a previous login session.
+    useEffect(() => {
+        const storedUser = getStoredAuth();
+        if (!storedUser?._id) return;
+
+        api.get(`/users/${storedUser._id}`)
+            .then((freshUser) => {
+                if (freshUser?._id) {
+                    localStorage.setItem('som_user', JSON.stringify(freshUser));
+                    setUserState(freshUser);
+                }
+            })
+            .catch(() => { /* silently ignore — offline or token expired */ });
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     const value = {
         user,           // full user object { _id, name, email, preferences, ... }

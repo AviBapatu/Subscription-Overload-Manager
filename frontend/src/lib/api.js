@@ -1,101 +1,108 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+import axios from 'axios';
 
-// ─── Generic fetch helper ────────────────────────────────────────────────────
-const apiFetch = async (path, options = {}) => {
+// ─── Axios instance ───────────────────────────────────────────────────────────
+const api = axios.create({
+    baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+    headers: { 'Content-Type': 'application/json' },
+});
+
+// Request interceptor — attach JWT automatically
+api.interceptors.request.use((config) => {
     const token = localStorage.getItem('som_token');
-    const authHeaders = token ? { 'Authorization': `Bearer ${token}` } : {};
+    if (token) config.headers.Authorization = `Bearer ${token}`;
+    return config;
+});
 
-    const res = await fetch(`${API_URL}${path}`, {
-        headers: { 'Content-Type': 'application/json', ...authHeaders, ...options.headers },
-        ...options,
-        body: options.body ? JSON.stringify(options.body) : undefined,
-    });
-    if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.error || `Request failed: ${res.status}`);
+// Response interceptor — unwrap data, normalise errors
+api.interceptors.response.use(
+    (response) => response.data,
+    (error) => {
+        const message =
+            error.response?.data?.error ||
+            error.response?.data?.message ||
+            error.message ||
+            'An unexpected error occurred';
+        return Promise.reject(new Error(message));
     }
-    return res.json();
-};
+);
 
-// ─── Auth ────────────────────────────────────────────────────────────────────
-export const registerUser = (email, password, name) =>
-    apiFetch('/users/register', { method: 'POST', body: { email, password, name } });
+export default api;
+
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+export const registerUser  = (email, password, name) =>
+    api.post('/users/register', { email, password, name });
 
 export const loginUser = (email, password) =>
-    apiFetch('/users/login', { method: 'POST', body: { email, password } });
+    api.post('/users/login', { email, password });
+
+export const googleLoginApi = (googleToken) =>
+    api.post('/users/google', { token: googleToken });
 
 export const requestPasswordReset = (email) =>
-    apiFetch('/users/forgot-password', { method: 'POST', body: { email } });
+    api.post('/users/forgot-password', { email });
 
 export const verifyResetOtp = (email, otp) =>
-    apiFetch('/users/verify-otp', { method: 'POST', body: { email, otp } });
+    api.post('/users/verify-otp', { email, otp });
 
 export const resetPassword = (email, otp, newPassword) =>
-    apiFetch('/users/reset-password', { method: 'POST', body: { email, otp, newPassword } });
+    api.post('/users/reset-password', { email, otp, newPassword });
 
-// ─── Users ───────────────────────────────────────────────────────────────────
+// ─── Users ────────────────────────────────────────────────────────────────────
 export const fetchUser = (userId) =>
-    apiFetch(`/users/${userId}`);
+    api.get(`/users/${userId}`);
 
 export const updateUserProfile = (userId, data) =>
-    apiFetch(`/users/${userId}`, { method: 'PUT', body: data });
+    api.put(`/users/${userId}`, data);
 
 export const updateUserPreferences = (userId, prefs) =>
-    apiFetch(`/users/${userId}/preferences`, { method: 'PUT', body: prefs });
+    api.put(`/users/${userId}/preferences`, prefs);
 
-// ─── Subscriptions: Lists ────────────────────────────────────────────────────
+export const sendTestEmail = (userId) =>
+    api.post(`/users/${userId}/test-email`);
+
+// ─── Subscriptions: Queries ───────────────────────────────────────────────────
 export const fetchSubscriptions = (userId, status) =>
-    apiFetch(`/subscriptions/${userId}${status ? `?status=${status}` : ''}`);
+    api.get(`/subscriptions/${userId}${status ? `?status=${status}` : ''}`);
 
 export const fetchStats = (userId) =>
-    apiFetch(`/subscriptions/${userId}/stats`);
+    api.get(`/subscriptions/${userId}/stats`);
 
 export const fetchUpcoming = (userId, limit = 5) =>
-    apiFetch(`/subscriptions/${userId}/upcoming?limit=${limit}`);
+    api.get(`/subscriptions/${userId}/upcoming?limit=${limit}`);
 
 export const fetchSpendingHistory = (userId) =>
-    apiFetch(`/subscriptions/${userId}/spending-history`);
+    api.get(`/subscriptions/${userId}/spending-history`);
 
 export const fetchCategoryBreakdown = (userId) =>
-    apiFetch(`/subscriptions/${userId}/category-breakdown`);
+    api.get(`/subscriptions/${userId}/category-breakdown`);
 
 export const fetchInsights = () =>
-    apiFetch('/subscriptions/insights');
+    api.get('/subscriptions/insights');
 
 export const fetchUpcomingTimeline = () =>
-    apiFetch('/subscriptions/upcoming');
+    api.get('/subscriptions/upcoming');
 
 // ─── Subscriptions: Mutations ─────────────────────────────────────────────────
 export const addSubscription = (userId, data) =>
-    apiFetch('/subscriptions', { method: 'POST', body: { ...data, userId } });
+    api.post('/subscriptions', { ...data, userId });
 
 export const updateSubscription = (id, data) =>
-    apiFetch(`/subscriptions/${id}`, { method: 'PUT', body: data });
+    api.put(`/subscriptions/${id}`, data);
 
 export const updateSubscriptionStatus = (id, status) =>
-    apiFetch(`/subscriptions/${id}/status`, { method: 'PUT', body: { status } });
+    api.put(`/subscriptions/${id}/status`, { status });
 
 export const paySubscription = (id) =>
-    apiFetch(`/subscriptions/${id}/pay`, { method: 'PUT' });
+    api.put(`/subscriptions/${id}/pay`);
 
 export const ignoreSubscription = (id) =>
-    apiFetch(`/subscriptions/${id}/ignore`, { method: 'PATCH' });
+    api.patch(`/subscriptions/${id}/ignore`);
 
 export const deleteSubscription = (id) =>
-    apiFetch(`/subscriptions/${id}`, { method: 'DELETE' });
-
-export const googleLoginApi = async (googleToken) => {
-    const res = await fetch('http://localhost:5000/api/users/google', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: googleToken }),
-    });
-    if (!res.ok) throw new Error('Google login failed');
-    return res.json();
-};
+    api.delete(`/subscriptions/${id}`);
 
 export const syncFromGmail = (userId, accessToken) =>
-    apiFetch('/subscriptions/sync-gmail', { method: 'POST', body: { userId, accessToken } });
+    api.post('/subscriptions/sync-gmail', { userId, accessToken });
 
 export const setupAutoSync = (userId, code) =>
-    apiFetch('/subscriptions/auto-setup', { method: 'POST', body: { userId, code } });
+    api.post('/subscriptions/auto-setup', { userId, code });

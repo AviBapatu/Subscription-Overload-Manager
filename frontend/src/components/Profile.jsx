@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dayjs from 'dayjs';
-import { fetchUser, updateUserPreferences, updateUserProfile } from '../lib/api';
+import { fetchUser, updateUserPreferences, updateUserProfile, sendTestEmail } from '../lib/api';
+
 import { useAuth } from '../lib/AuthContext';
 
 import { DeleteModal } from './profile/ui';
@@ -141,7 +142,7 @@ const Profile = () => {
 
     const handleTestEmail = async () => {
         try {
-            await api.post(`/users/${user?._id}/test-email`);
+            await sendTestEmail(user?._id);
             setTestSent(true);
             setTimeout(() => setTestSent(false), 3000);
         } catch (err) {
