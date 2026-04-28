@@ -72,6 +72,13 @@ async function syncFromGmail(accessToken, userId) {
       continue;
     }
 
+    // SKIP emails sent by the app's server (notifications/reminders)
+    const serverEmailStr = process.env.GMAIL_USER ? process.env.GMAIL_USER.toLowerCase() : '';
+    if (serverEmailStr && from.toLowerCase().includes(serverEmailStr)) {
+      console.log(`[SCAN] SKIP (sent by server): "${subject}"`);
+      continue;
+    }
+
     // Debug: confirm each email entering the pipeline
     console.log(`[SCAN] Processing email: "${subject}" | from: ${from}`);
 
