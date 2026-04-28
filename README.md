@@ -55,6 +55,14 @@ npm run dev
 ```
 
 ## Documentation
-- [Architecture Details](ARCHITECTURE.md)
-- [Code Structure & Functions](CODE_EXPLANATION.md)
-- [NPM Packages](PACKAGE_EXPLANATION.md)
+
+All technical documentation lives in the [`/docs`](./docs/) folder.
+
+| Document | Description |
+|---|---|
+| [docs/README.md](./docs/README.md) | Documentation hub — quick reference tables and env variable guide |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | System design, pipeline decisions, and data flow |
+| [docs/BACKEND_FILES.md](./docs/BACKEND_FILES.md) | File-by-file and function-by-function backend guide |
+| [docs/FRONTEND_FILES.md](./docs/FRONTEND_FILES.md) | File-by-file and component-by-component frontend guide |
+| [docs/PACKAGE_EXPLANATION.md](./docs/PACKAGE_EXPLANATION.md) | Why each NPM dependency was chosen |
+| [docs/CODE_EXPLANATION.md](./docs/CODE_EXPLANATION.md) | High-level cross-reference of key functions |
