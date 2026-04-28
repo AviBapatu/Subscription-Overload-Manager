@@ -27,21 +27,25 @@ const toMonthly = (sub) => {
     return sub.cost; // MONTHLY
 };
 
-// ─── Helper: check if a notification was already sent today for this sub ──────
-const alreadySentToday = async (userId, subscriptionId, type, tz = 'UTC') => {
-    const startOfUserDay = dayjs().tz(tz).startOf('day').toDate();
-    const endOfUserDay = dayjs().tz(tz).endOf('day').toDate();
+// ─── Helper: check if a notification was already sent for a specific date/cycle ──
+const alreadySentToday = async (userId, subscriptionId, type, sentForDate) => {
     return NotificationLog.findOne({
         userId,
         subscriptionId,
         type,
-        createdAt: { $gte: startOfUserDay, $lte: endOfUserDay },
+        sentForDate: dayjs(sentForDate).startOf('day').toDate(),
     });
 };
 
 // ─── Helper: log a delivered notification ────────────────────────────────────
-const logDelivery = (userId, subscriptionId, type) =>
-    NotificationLog.create({ userId, subscriptionId, type, status: 'DELIVERED' });
+const logDelivery = (userId, subscriptionId, type, sentForDate) =>
+    NotificationLog.create({
+        userId,
+        subscriptionId,
+        type,
+        sentForDate: dayjs(sentForDate || new Date()).startOf('day').toDate(),
+        status: 'DELIVERED'
+    });
 
 /* ═══════════════════════════════════════════════════════════════════════════
  *  JOB 1 — Upcoming Renewal Alerts (runs every hour, fires at midnight local)
@@ -87,12 +91,12 @@ const runSubscriptionAlerts = async () => {
 
             // Notice we use the `daysUntil` as the `type` string to ensure we can send multiple distinct alerts per billing cycle
             const logType = `RENEWAL_${daysUntil}D`;
-            const sent = await alreadySentToday(sub.userId, sub._id, logType, user.timezone || IST_TZ);
+            const sent = await alreadySentToday(sub.userId, sub._id, logType, sub.nextBillingDate);
             if (sent) continue;
 
             try {
                 await sendRenewalAlert(sub.userEmail, sub, daysUntil);
-                await logDelivery(sub.userId, sub._id, logType);
+                await logDelivery(sub.userId, sub._id, logType, sub.nextBillingDate);
             } catch (err) {
                 console.error(`[CRON] Renewal alert failed for ${sub.userEmail}:`, err.message);
             }
@@ -199,12 +203,7 @@ const runWeeklySummary = async () => {
 
             // Prevent duplicate weekly emails for the same week
             const startOfWeek = dayjs().tz(userTz).startOf('week').toDate();
-            const endOfWeek = dayjs().tz(userTz).endOf('week').toDate();
-            const alreadySent = await NotificationLog.findOne({
-                userId: user._id,
-                type: 'WEEKLY_SUMMARY',
-                createdAt: { $gte: startOfWeek, $lte: endOfWeek },
-            });
+            const alreadySent = await alreadySentToday(user._id, null, 'WEEKLY_SUMMARY', startOfWeek);
             if (alreadySent) continue;
 
             const upcomingSubs = await Subscription.find({
@@ -218,11 +217,7 @@ const runWeeklySummary = async () => {
 
             try {
                 await sendWeeklySummary(user.email, user.name, upcomingSubs, totalMonthly);
-                await NotificationLog.create({
-                    userId: user._id,
-                    type: 'WEEKLY_SUMMARY',
-                    status: 'DELIVERED',
-                });
+                await logDelivery(user._id, null, 'WEEKLY_SUMMARY', startOfWeek);
             } catch (err) {
                 console.error(`[CRON] Weekly summary failed for ${user.email}:`, err.message);
             }
@@ -260,24 +255,13 @@ const runBudgetAlerts = async () => {
             if (percentage < 80) continue;
 
             // Idempotency: only send once per calendar month in user's timezone
-            const userTz = user.timezone || 'UTC';
-            const startOfMonth = dayjs().tz(userTz).startOf('month').toDate();
-            const endOfMonth = dayjs().tz(userTz).endOf('month').toDate();
-            
-            const alreadySentThisMonth = await NotificationLog.findOne({
-                userId: user._id,
-                type: 'BUDGET',
-                createdAt: { $gte: startOfMonth, $lte: endOfMonth },
-            });
+            const startOfMonth = dayjs().tz(user.timezone || 'UTC').startOf('month').toDate();
+            const alreadySentThisMonth = await alreadySentToday(user._id, null, 'BUDGET', startOfMonth);
             if (alreadySentThisMonth) continue;
 
             try {
                 await sendBudgetAlert(user.email, user.name, spent, budget, percentage);
-                await NotificationLog.create({
-                    userId: user._id,
-                    type: 'BUDGET',
-                    status: 'DELIVERED',
-                });
+                await logDelivery(user._id, null, 'BUDGET', startOfMonth);
             } catch (err) {
                 console.error(`[CRON] Budget alert failed for ${user.email}:`, err.message);
             }
