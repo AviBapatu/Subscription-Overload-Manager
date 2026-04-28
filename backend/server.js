@@ -16,11 +16,8 @@ mongoose.connect(process.env.MONGO_URI)
 
 
 // API Routes
-// NOTE: /users/login must be mounted before generic user routes
-// to prevent Express matching "login" as an :id param.
 app.use('/api/subscriptions', require('./routes/subscriptions'));
 app.use('/api/users', require('./routes/users'));
-app.post('/api/users/google', require('./controllers/userController').googleLogin);
 
 // Dev-only — email + cron job manual trigger routes
 if (process.env.NODE_ENV !== 'production') {
