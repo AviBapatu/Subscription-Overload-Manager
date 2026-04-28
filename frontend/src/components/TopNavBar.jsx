@@ -51,7 +51,7 @@ const TopNavBar = () => {
                         <Link to="/profile" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
                             <div className="w-10 h-10 rounded-full bg-surface-container-high border-2 border-surface-container-lowest shadow-sm overflow-hidden flex items-center justify-center bg-primary/10 text-primary font-black">
                                 {user?.profilePicture ? (
-                                    <img src={user.profilePicture} alt={user.name || "User"} className="w-full h-full object-cover" />
+                                    <img src={user.profilePicture} alt={user.name || "User"} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={e => { e.currentTarget.style.display = 'none'; }} />
                                 ) : (
                                     user?.name ? user.name.charAt(0).toUpperCase() : 'U'
                                 )}

@@ -41,7 +41,7 @@ const SettingsPanels = ({
             <div className="flex items-center gap-6">
                 <div className="w-20 h-20 rounded-xl bg-surface-container-highest flex items-center justify-center text-3xl font-black text-on-surface-variant shrink-0 overflow-hidden">
                     {user?.profilePicture ? (
-                        <img src={user.profilePicture} alt={user.name || 'User'} className="w-full h-full object-cover" />
+                        <img src={user.profilePicture} alt={user.name || 'User'} className="w-full h-full object-cover" referrerPolicy="no-referrer" onError={e => { e.currentTarget.style.display = 'none'; }} />
                     ) : (
                         user?.name ? user.name.charAt(0).toUpperCase() : 'U'
                     )}
