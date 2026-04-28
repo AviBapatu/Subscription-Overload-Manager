@@ -58,6 +58,7 @@ const Profile = () => {
 
     const [budgetDraft, setBudgetDraft]   = useState('');
     const [testSent, setTestSent]         = useState(false);
+    const [isSending, setIsSending]       = useState(false);
     const [showDelete, setShowDelete]     = useState(false);
 
     // ── Sync server → local when user data arrives ───────────────────────────
@@ -141,6 +142,8 @@ const Profile = () => {
     };
 
     const handleTestEmail = async () => {
+        if (isSending || testSent) return;
+        setIsSending(true);
         try {
             await sendTestEmail(user?._id);
             setTestSent(true);
@@ -148,6 +151,8 @@ const Profile = () => {
         } catch (err) {
             console.error('Failed to send test email', err);
             alert('Failed to send test email');
+        } finally {
+            setIsSending(false);
         }
     };
 
@@ -195,6 +200,7 @@ const Profile = () => {
                         snoozeUntilLabel={snoozeUntilLabel}
                         // Test email
                         testSent={testSent}
+                        isSending={isSending}
                         handleTestEmail={handleTestEmail}
                         // Danger zone
                         onDeleteRequest={() => setShowDelete(true)}

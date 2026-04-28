@@ -30,6 +30,7 @@ const SettingsPanels = ({
     snoozeUntilLabel,
     // Test email
     testSent,
+    isSending,
     handleTestEmail,
     // Danger zone
     onDeleteRequest,
@@ -242,10 +243,20 @@ const SettingsPanels = ({
 
             <div className="pt-6 border-t border-outline-variant/10">
                 <PrefRow title="Test Notification" subtitle="Send a sample alert to verify your email is working">
-                    <button onClick={handleTestEmail}
-                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all ${testSent ? 'bg-green-100 text-green-700' : 'bg-primary/10 text-primary hover:bg-primary/20'}`}>
-                        <span className="material-symbols-outlined text-[18px]">{testSent ? 'check_circle' : 'send'}</span>
-                        {testSent ? 'Email Sent!' : 'Send Test Email'}
+                    <button
+                        onClick={handleTestEmail}
+                        disabled={isSending || testSent}
+                        className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-bold transition-all disabled:cursor-not-allowed ${
+                            testSent
+                                ? 'bg-green-100 text-green-700'
+                                : isSending
+                                    ? 'bg-primary/5 text-primary/50'
+                                    : 'bg-primary/10 text-primary hover:bg-primary/20'
+                        }`}>
+                        <span className={`material-symbols-outlined text-[18px] ${isSending ? 'animate-spin' : ''}`}>
+                            {testSent ? 'check_circle' : isSending ? 'progress_activity' : 'send'}
+                        </span>
+                        {testSent ? 'Email Sent!' : isSending ? 'Sending…' : 'Send Test Email'}
                     </button>
                 </PrefRow>
             </div>
