@@ -16,9 +16,9 @@ const PrivacyBanner = ({ lastGmailSync }) => (
                 <span className="opacity-70">Last scanned {dayjs(lastGmailSync).fromNow()}.</span>
             )}
         </div>
-        <a href="/profile" className="shrink-0 text-xs font-bold text-primary uppercase tracking-widest hover:underline whitespace-nowrap self-center">
+        {/* <a href="/profile" className="shrink-0 text-xs font-bold text-primary uppercase tracking-widest hover:underline whitespace-nowrap self-center">
             Manage Access
-        </a>
+        </a> */}
     </div>
 );
 
